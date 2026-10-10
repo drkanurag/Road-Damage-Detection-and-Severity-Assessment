@@ -117,57 +117,82 @@ class SeverityEstimator:
         max_dim = max(box_w, box_h)
         extent_norm = max_dim / float(max(h_img, w_img))
 
-        # Photometric / Texture analysis on the ROI
+        # Photometric / Texture & Morphological Fissure analysis on the ROI
         edge_density = 0.15
         contrast_delta = 0.0
+        persp_area_mult = 1.0
+        persp_extent_mult = 1.0
 
         if image_bgr is not None and area_px > 16:
             ix1, iy1, ix2, iy2 = int(x1), int(y1), int(x2), int(y2)
             crop = image_bgr[iy1:iy2, ix1:ix2]
             if crop.size > 0:
                 gray_crop = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
-                # Compute Canny edge density inside bounding box
+                # 1. Canny edge density combined with Morphological Black-Hat dark fissure extraction
                 canny_edges = cv2.Canny(gray_crop, 40, 120)
-                edge_density = float(np.count_nonzero(canny_edges)) / float(gray_crop.size)
+                canny_ratio = float(np.count_nonzero(canny_edges)) / float(gray_crop.size)
 
-                # Surrounding context brightness vs inside depression brightness
-                mean_inner = float(np.mean(gray_crop))
-                # Sample a small band around the defect if within bounds
-                pad = 12
+                k_size = max(3, min(11, int(min(box_w, box_h) // 6) | 1))
+                kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k_size, k_size))
+                blackhat = cv2.morphologyEx(gray_crop, cv2.MORPH_BLACKHAT, kernel)
+                fissure_mask = blackhat > 18
+                fissure_ratio = float(np.count_nonzero(fissure_mask)) / float(gray_crop.size)
+
+                edge_density = 0.55 * canny_ratio + 0.45 * fissure_ratio
+
+                # 2. True annular surrounding road brightness vs inner defect core depression
+                mean_inner = 0.6 * float(np.mean(gray_crop)) + 0.4 * float(np.percentile(gray_crop, 25))
+                pad = max(12, int(min(box_w, box_h) * 0.25))
                 sy1 = max(0, iy1 - pad)
                 sy2 = min(h_img, iy2 + pad)
                 sx1 = max(0, ix1 - pad)
                 sx2 = min(w_img, ix2 + pad)
                 surrounding = cv2.cvtColor(image_bgr[sy1:sy2, sx1:sx2], cv2.COLOR_BGR2GRAY)
-                mean_surrounding = float(np.mean(surrounding))
+
+                # Exclude inner bounding box pixels when computing intact road surface brightness
+                ring_sum = float(np.sum(surrounding)) - float(np.sum(gray_crop))
+                ring_count = max(1, surrounding.size - gray_crop.size)
+                mean_surrounding = (
+                    ring_sum / ring_count
+                    if ring_count > 16
+                    else float(np.mean(surrounding))
+                )
                 contrast_delta = max(0.0, mean_surrounding - mean_inner)
+
+                # 3. Camera perspective foreshortening compensation for midground defects
+                y_center_norm = ((y1 + y2) * 0.5) / float(max(1, h_img))
+                persp_extent_mult = 1.0 + 0.25 * max(0.0, 0.72 - y_center_norm)
+                persp_area_mult = persp_extent_mult ** 1.3
+
+        eff_area_pct = area_pct * persp_area_mult
+        eff_extent_norm = min(1.0, extent_norm * persp_extent_mult)
 
         # Normalize defect category name
         c_lower = class_name.lower().replace("_", " ")
 
         if "pothole" in c_lower:
             level, score, rationale = self._assess_pothole(
-                area_pct, extent_norm, edge_density, contrast_delta
+                eff_area_pct, eff_extent_norm, edge_density, contrast_delta
             )
             canonical_class = "Pothole"
         elif "alligator" in c_lower:
             level, score, rationale = self._assess_alligator(
-                area_pct, extent_norm, edge_density
+                eff_area_pct, eff_extent_norm, edge_density
             )
             canonical_class = "Alligator crack"
         elif "longitudinal" in c_lower:
             level, score, rationale = self._assess_longitudinal(
-                box_w, box_h, extent_norm, edge_density
+                box_w, box_h, eff_extent_norm, edge_density
             )
             canonical_class = "Longitudinal crack"
         elif "transverse" in c_lower:
             level, score, rationale = self._assess_transverse(
-                box_w, box_h, extent_norm, edge_density
+                box_w, box_h, eff_extent_norm, edge_density
             )
             canonical_class = "Transverse crack"
         else:
             # Generic defect fallback
-            score = min(1.0, max(0.1, (area_pct / 2.0) * 0.5 + extent_norm * 0.5))
+            score = min(1.0, max(0.1, (eff_area_pct / 2.0) * 0.5 + eff_extent_norm * 0.5))
             if score < 0.35:
                 level = SEVERITY_LOW
             elif score < 0.65:

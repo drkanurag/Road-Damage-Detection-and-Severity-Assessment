@@ -17,8 +17,11 @@ from road_damage_vision.config import (
     DEFAULT_IMG_SIZE,
     DEFAULT_IOU_THRESHOLD,
     DEFAULT_ONNX_MODEL_PATH,
+    DEFAULT_ORT_THREADS,
     DEFAULT_PT_MODEL_PATH,
     DEFECT_CLASSES,
+    SPECIALIST_ONNX_MODEL_PATH,
+    SPECIALIST_PT_MODEL_PATH,
 )
 from road_damage_vision.severity import RoadHealthSummary, SeverityAssessment, SeverityEstimator
 
@@ -50,8 +53,9 @@ class RoadDamageDetector:
     """
     High-performance, lightweight road defect detector and severity classifier.
     
-    Defaults to ONNX Runtime for ultra-fast, dependency-free execution on edge devices
-    and standard CPUs without requiring large GPU frameworks.
+    Uses a Dual-Model Specialist Ensemble (Global RDD2022 Multi-Class + India Pothole
+    Specialist) with Weighted Box Fusion (WBF) and Containment NMS by default,
+    running on ONNX Runtime for ultra-fast execution on standard CPUs.
     """
 
     def __init__(
@@ -61,6 +65,7 @@ class RoadDamageDetector:
         img_size: int = DEFAULT_IMG_SIZE,
         conf_threshold: float = DEFAULT_CONF_THRESHOLD,
         iou_threshold: float = DEFAULT_IOU_THRESHOLD,
+        ensemble: bool = True,
     ):
         """
         Args:
@@ -69,6 +74,7 @@ class RoadDamageDetector:
             img_size: Input resolution (default 640).
             conf_threshold: Minimum detection confidence (0.0 to 1.0).
             iou_threshold: IoU overlap threshold for Non-Maximum Suppression.
+            ensemble: Whether to fuse predictions with the secondary regional specialist model.
         """
         self.backend = backend.lower()
         self.img_size = img_size
@@ -83,10 +89,21 @@ class RoadDamageDetector:
                 model_path = DEFAULT_PT_MODEL_PATH
 
         self.model_path = model_path
+        self.specialist_path: Optional[str] = None
+        if ensemble and self.model_path in (DEFAULT_ONNX_MODEL_PATH, DEFAULT_PT_MODEL_PATH):
+            cand_spec = (
+                SPECIALIST_ONNX_MODEL_PATH
+                if self.backend == "onnx"
+                else SPECIALIST_PT_MODEL_PATH
+            )
+            if os.path.exists(cand_spec) and os.path.abspath(cand_spec) != os.path.abspath(self.model_path):
+                self.specialist_path = cand_spec
+
+        self.use_ensemble = self.specialist_path is not None
         self._init_backend()
 
     def _init_backend(self) -> None:
-        """Loads model into memory using the selected engine."""
+        """Loads model(s) into memory using the selected engine."""
         if not os.path.exists(self.model_path):
             raise FileNotFoundError(
                 f"Model file not found at: {self.model_path}. "
@@ -96,10 +113,12 @@ class RoadDamageDetector:
         if self.backend == "onnx":
             import onnxruntime as ort
 
-            # Prefer CPUExecutionProvider for lightweight edge/desktop deployment
+            # Optimal thread count avoids OpenMP spin-wait overhead on multi-core CPUs
             sess_options = ort.SessionOptions()
             sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-            sess_options.intra_op_num_threads = max(1, os.cpu_count() or 4)
+            sess_options.intra_op_num_threads = min(
+                DEFAULT_ORT_THREADS, max(1, os.cpu_count() or 4)
+            )
 
             self.session = ort.InferenceSession(
                 self.model_path,
@@ -108,13 +127,37 @@ class RoadDamageDetector:
             )
             self.input_name = self.session.get_inputs()[0].name
             self.output_name = self.session.get_outputs()[0].name
+            # Pre-allocate ONNX Runtime memory arena so first inference is sub-50ms
+            dummy = np.zeros((1, 3, self.img_size, self.img_size), dtype=np.float32)
+            self.session.run([self.output_name], {self.input_name: dummy})
+
+            self.specialist_session = None
+            if self.use_ensemble and self.specialist_path:
+                self.specialist_session = ort.InferenceSession(
+                    self.specialist_path,
+                    sess_options=sess_options,
+                    providers=["CPUExecutionProvider"],
+                )
+                self.spec_input_name = self.specialist_session.get_inputs()[0].name
+                self.spec_output_name = self.specialist_session.get_outputs()[0].name
+                self.specialist_session.run(
+                    [self.spec_output_name], {self.spec_input_name: dummy}
+                )
+
             self.model = None
+            self.specialist_model = None
 
         elif self.backend == "pytorch":
             from ultralytics import YOLO
 
             self.model = YOLO(self.model_path)
+            self.specialist_model = (
+                YOLO(self.specialist_path)
+                if (self.use_ensemble and self.specialist_path)
+                else None
+            )
             self.session = None
+            self.specialist_session = None
 
         else:
             raise ValueError(f"Unsupported backend '{self.backend}'. Use 'onnx' or 'pytorch'.")
@@ -217,6 +260,179 @@ class RoadDamageDetector:
 
         return results
 
+    @staticmethod
+    def _box_iou_and_containment(
+        b1: Tuple[float, float, float, float],
+        b2: Tuple[float, float, float, float],
+    ) -> Tuple[float, float]:
+        """Computes standard Intersection-over-Union (IoU) and Intersection-over-Minimum-Area (IoMin)."""
+        ix1 = max(b1[0], b2[0])
+        iy1 = max(b1[1], b2[1])
+        ix2 = min(b1[2], b2[2])
+        iy2 = min(b1[3], b2[3])
+        inter = max(0.0, ix2 - ix1) * max(0.0, iy2 - iy1)
+        a1 = max(1e-6, (b1[2] - b1[0]) * (b1[3] - b1[1]))
+        a2 = max(1e-6, (b2[2] - b2[0]) * (b2[3] - b2[1]))
+        union = a1 + a2 - inter
+        iou = inter / union if union > 0 else 0.0
+        containment = inter / min(a1, a2)
+        return iou, containment
+
+    def _fuse_ensemble_detections(
+        self,
+        det_global: List[Tuple[int, float, Tuple[float, float, float, float]]],
+        det_specialist: List[Tuple[int, float, Tuple[float, float, float, float]]],
+        conf_thresh: float,
+    ) -> List[Tuple[int, float, Tuple[float, float, float, float]]]:
+        """
+        Fuses predictions from the Global Multi-Class RDD2022 model and the Regional
+        Pothole Specialist model using Domain-Aware Gated Weighted Box Fusion (WBF),
+        class-conflict resolution, and Containment-Aware Non-Maximum Suppression.
+        """
+        fused: List[Tuple[int, float, Tuple[float, float, float, float]]] = []
+        used_spec = set()
+
+        # Assess whether the Global Multi-Class model already has strong confidence
+        # or multiple crack detections on this frame
+        max_global_conf = max((c[1] for c in det_global), default=0.0)
+        global_crack_count = sum(1 for c in det_global if c[0] in (0, 1, 2))
+        global_crack_dominant = (max_global_conf >= 0.50) or (global_crack_count >= 2)
+
+        for g_cid, g_conf, g_box in det_global:
+            matches = []
+            for j, (s_cid, s_conf, s_box) in enumerate(det_specialist):
+                iou, cont = self._box_iou_and_containment(g_box, s_box)
+                if iou >= 0.15 or cont >= 0.40:
+                    matches.append((j, s_cid, s_conf, s_box, iou))
+
+            if matches:
+                for m in matches:
+                    used_spec.add(m[0])
+                best_m = max(matches, key=lambda x: x[2])
+                _, s_cid, s_conf, s_box, best_iou = best_m
+
+                if g_cid == s_cid and best_iou >= 0.30:
+                    # Both models agree on class & location: Weighted Box Fusion + confidence boost
+                    w1, w2 = g_conf, s_conf
+                    fx1 = (g_box[0] * w1 + s_box[0] * w2) / (w1 + w2)
+                    fy1 = (g_box[1] * w1 + s_box[1] * w2) / (w1 + w2)
+                    fx2 = (g_box[2] * w1 + s_box[2] * w2) / (w1 + w2)
+                    fy2 = (g_box[3] * w1 + s_box[3] * w2) / (w1 + w2)
+                    f_conf = min(0.98, max(g_conf, s_conf) + 0.12 * min(g_conf, s_conf))
+                    fused.append((g_cid, f_conf, (fx1, fy1, fx2, fy2)))
+                else:
+                    # Class conflict resolution:
+                    # Global model has superior multi-class crack discrimination (classes 0, 1, 2)
+                    if g_cid in (0, 1, 2) and s_cid == 3:
+                        fused.append((g_cid, min(0.95, g_conf + 0.05), g_box))
+                    elif g_conf >= s_conf:
+                        fused.append((g_cid, g_conf, g_box))
+                    else:
+                        fused.append((s_cid, s_conf, s_box))
+            else:
+                fused.append((g_cid, g_conf, g_box))
+
+        # Incorporate non-overlapping specialist pothole detections on weathered/Indian roads
+        for j, (s_cid, s_conf, s_box) in enumerate(det_specialist):
+            if j in used_spec:
+                continue
+            overlaps_existing = any(
+                self._box_iou_and_containment(s_box, f_box)[0] >= 0.15
+                or self._box_iou_and_containment(s_box, f_box)[1] >= 0.40
+                for _, _, f_box in fused
+            )
+            if overlaps_existing:
+                continue
+
+            if global_crack_dominant:
+                # Frame already has strong Global multi-class detections; only allow high-confidence
+                # independent specialist detections to avoid crack-fragment false positives
+                if s_conf >= max(0.45, conf_thresh + 0.20):
+                    fused.append((s_cid, s_conf, s_box))
+            else:
+                # Weathered / Indian asphalt domain where Global model has low recall
+                if s_cid == 3:
+                    calib_conf = min(0.92, s_conf * 1.18)
+                    if calib_conf >= conf_thresh:
+                        fused.append((s_cid, calib_conf, s_box))
+                elif s_conf >= conf_thresh + 0.08:
+                    fused.append((s_cid, s_conf, s_box))
+
+        # Final Containment-Aware NMS to eliminate nested redundant bounding boxes
+        fused.sort(key=lambda x: x[1], reverse=True)
+        final_boxes: List[Tuple[int, float, Tuple[float, float, float, float]]] = []
+        for cid, conf, box in fused:
+            if conf < conf_thresh:
+                continue
+            keep = True
+            for k_cid, _, k_box in final_boxes:
+                iou, cont = self._box_iou_and_containment(box, k_box)
+                if iou >= 0.45 or (cid == k_cid and cont >= 0.72):
+                    keep = False
+                    break
+            if keep:
+                final_boxes.append((cid, conf, box))
+
+        return final_boxes
+
+    def detect_raw(
+        self,
+        img_bgr: np.ndarray,
+        conf_threshold: Optional[float] = None,
+        iou_threshold: Optional[float] = None,
+    ) -> List[Tuple[int, float, Tuple[float, float, float, float]]]:
+        """
+        Runs object detection (including Dual-Model Specialist WBF Ensemble if enabled)
+        and returns raw (class_id, confidence, (x1, y1, x2, y2)) detections.
+        """
+        conf_t = conf_threshold if conf_threshold is not None else self.conf_threshold
+        iou_t = iou_threshold if iou_threshold is not None else self.iou_threshold
+        orig_h, orig_w = img_bgr.shape[:2]
+
+        if self.backend == "onnx":
+            inp_tensor, ratio, pad = self._preprocess_onnx(img_bgr)
+            out_global = self.session.run([self.output_name], {self.input_name: inp_tensor})[0]
+            det_global = self._postprocess_onnx(
+                out_global, (orig_h, orig_w), ratio, pad, conf_t, iou_t
+            )
+            if self.use_ensemble and self.specialist_session is not None:
+                spec_conf = max(0.20, conf_t * 0.85)
+                out_spec = self.specialist_session.run(
+                    [self.spec_output_name], {self.spec_input_name: inp_tensor}
+                )[0]
+                det_spec = self._postprocess_onnx(
+                    out_spec, (orig_h, orig_w), ratio, pad, spec_conf, iou_t
+                )
+                return self._fuse_ensemble_detections(det_global, det_spec, conf_t)
+            return det_global
+
+        elif self.backend == "pytorch":
+            results = self.model.predict(
+                img_bgr, conf=conf_t, iou=iou_t, imgsz=self.img_size, verbose=False
+            )[0]
+            det_global = []
+            for box in results.boxes:
+                cid = int(box.cls[0])
+                score = float(box.conf[0])
+                x1, y1, x2, y2 = box.xyxy[0].tolist()
+                det_global.append((cid, score, (x1, y1, x2, y2)))
+
+            if self.use_ensemble and self.specialist_model is not None:
+                spec_conf = max(0.20, conf_t * 0.85)
+                res_spec = self.specialist_model.predict(
+                    img_bgr, conf=spec_conf, iou=iou_t, imgsz=self.img_size, verbose=False
+                )[0]
+                det_spec = []
+                for box in res_spec.boxes:
+                    cid = int(box.cls[0])
+                    score = float(box.conf[0])
+                    x1, y1, x2, y2 = box.xyxy[0].tolist()
+                    det_spec.append((cid, score, (x1, y1, x2, y2)))
+                return self._fuse_ensemble_detections(det_global, det_spec, conf_t)
+            return det_global
+
+        return []
+
     def predict(
         self,
         image_input: Union[str, np.ndarray, Image.Image],
@@ -256,24 +472,7 @@ class RoadDamageDetector:
         orig_h, orig_w = img_bgr.shape[:2]
         t_start = time.perf_counter()
 
-        raw_detections: List[Tuple[int, float, Tuple[float, float, float, float]]] = []
-
-        if self.backend == "onnx":
-            inp_tensor, ratio, pad = self._preprocess_onnx(img_bgr)
-            out_tensor = self.session.run([self.output_name], {self.input_name: inp_tensor})[0]
-            raw_detections = self._postprocess_onnx(
-                out_tensor, (orig_h, orig_w), ratio, pad, conf_t, iou_t
-            )
-
-        elif self.backend == "pytorch":
-            results = self.model.predict(
-                img_bgr, conf=conf_t, iou=iou_t, imgsz=self.img_size, verbose=False
-            )[0]
-            for box in results.boxes:
-                cid = int(box.cls[0])
-                score = float(box.conf[0])
-                x1, y1, x2, y2 = box.xyxy[0].tolist()
-                raw_detections.append((cid, score, (x1, y1, x2, y2)))
+        raw_detections = self.detect_raw(img_bgr, conf_threshold=conf_t, iou_threshold=iou_t)
 
         t_end = time.perf_counter()
         inference_ms = (t_end - t_start) * 1000.0
@@ -323,11 +522,12 @@ class RoadDamageDetector:
         # Overall Pavement Health Index
         summary = self.severity_estimator.compute_road_health(summary_tuples)
 
+        ensemble_tag = "Dual-Model WBF Ensemble, CPU-optimized" if self.use_ensemble else "CPU-optimized"
         return RoadDamageReport(
             image_shape=(orig_h, orig_w),
             detections=detections,
             summary=summary,
             inference_time_ms=round(inference_ms, 2),
-            backend_used=f"{self.backend.upper()} (CPU-optimized)",
+            backend_used=f"{self.backend.upper()} ({ensemble_tag})",
             source_info=source_info,
         )

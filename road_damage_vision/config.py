@@ -104,8 +104,12 @@ MAINTENANCE_ACTIONS: Dict[str, Dict[str, str]] = {
     }
 }
 
-DEFAULT_ONNX_MODEL_PATH = "models/rdd2022_india_trained.onnx"
-DEFAULT_PT_MODEL_PATH = "models/rdd2022_india_trained.pt"
+DEFAULT_ONNX_MODEL_PATH = "models/rdd2022_yolov8n.onnx"
+DEFAULT_PT_MODEL_PATH = "models/rdd2022_yolov8n.pt"
+SPECIALIST_ONNX_MODEL_PATH = "models/rdd2022_india_trained.onnx"
+SPECIALIST_PT_MODEL_PATH = "models/rdd2022_india_trained.pt"
 DEFAULT_IMG_SIZE = 640
 DEFAULT_CONF_THRESHOLD = 0.20
 DEFAULT_IOU_THRESHOLD = 0.45
+DEFAULT_ORT_THREADS = 6
+

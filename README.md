@@ -1,8 +1,28 @@
 # 🛣️ Road Damage Detection & Severity Assessment System
 
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/drkanurag/Road-Damage-Detection-and-Severity-Assessment?quickstart=1)
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://share.streamlit.io/deploy?repository=drkanurag/Road-Damage-Detection-and-Severity-Assessment&branch=main&mainModule=app.py)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/drkanurag/Road-Damage-Detection-and-Severity-Assessment)
+
 A production-ready, lightweight computer vision system for real-time pavement inspection, automated defect localization, classification into 4 standardized damage types, and multi-factor ASTM D6433 severity estimation (**Low**, **Medium**, **High**).
 
 Designed for edge deployment, CPU-only servers, and vehicle inspection dashcams with **sub-50ms inference latency** on standard Intel/AMD CPUs.
+
+---
+
+## 🌐 Direct Access Links (Use the Program Instantly)
+
+Anyone can launch and use the application directly via the links below:
+
+| Access Method | Clickable Link | Description |
+|---|---|---|
+| **🚀 Run in Browser (Zero Install)** | [**Launch in GitHub Codespaces**](https://codespaces.new/drkanurag/Road-Damage-Detection-and-Severity-Assessment?quickstart=1) | Automatically provisions the environment, starts the microservices server, and opens the Web UI in your browser. |
+| **☁️ Streamlit Cloud App** | [**Open / Deploy on Streamlit Cloud**](https://share.streamlit.io/deploy?repository=drkanurag/Road-Damage-Detection-and-Severity-Assessment&branch=main&mainModule=app.py) | 1-click cloud access to the interactive Streamlit Road Damage Analytics Dashboard. |
+| **☁️ Render Cloud Web App** | [**Deploy Full Microservices App on Render**](https://render.com/deploy?repo=https://github.com/drkanurag/Road-Damage-Detection-and-Severity-Assessment) | 1-click public cloud hosting for the Cyber-Glassmorphic Web UI & FastAPI Gateway. |
+| **💻 Local Web Application** | [**http://localhost:8000**](http://localhost:8000) / [**http://127.0.0.1:8000**](http://127.0.0.1:8000) | Direct link to the main RoadVision AI Web Application when running locally. |
+| **📖 Interactive API Swagger UI** | [**http://localhost:8000/docs**](http://localhost:8000/docs) | Live OpenAPI documentation to test `/api/detect` and all microservice endpoints directly in the browser. |
+| **📊 Local Streamlit Dashboard** | [**http://localhost:8501**](http://localhost:8501) | Direct link when running `streamlit run app.py`. |
+| **📦 Download Program (ZIP)** | [**Download Latest Release ZIP**](https://github.com/drkanurag/Road-Damage-Detection-and-Severity-Assessment/archive/refs/heads/main.zip) | Direct 1-click download of the complete source code and pre-trained ONNX/PyTorch models. |
 
 ---
 
@@ -18,37 +38,26 @@ Designed for edge deployment, CPU-only servers, and vehicle inspection dashcams 
 
 ---
 
-## 🏗️ System Architecture
+## 🏗️ Microservices System Architecture
+
+The system follows **Domain-Driven Microservices Architecture** and **12-Factor App** principles, decomposing road inspection into 5 decoupled services with strict Pydantic DTO contracts, Correlation-ID distributed tracing (`X-Correlation-ID`), and resilient circuit-breaker fallback:
+
+| Microservice | Default Port | Bounded Context & Responsibility | Key Endpoints |
+|---|---|---|---|
+| **API Gateway** (`services.api_gateway`) | `:8000` | Edge routing, pipeline orchestration, circuit breaker, static UI | `POST /api/detect`, `GET /api/health`, `GET /api/services/status` |
+| **Detection Service** (`services.detection_service`) | `:8001` | YOLOv8 ONNX / PyTorch inference, letterbox scaling & NMS | `POST /v1/detect`, `GET /health` |
+| **Severity Service** (`services.severity_service`) | `:8002` | Stateless ASTM D6433 severity grading & PCI (0–100) scoring | `POST /v1/assess`, `GET /v1/standards`, `GET /health` |
+| **Visualization Service** (`services.visualization_service`) | `:8003` | Bounding box overlays, Executive HUD & defect crop extraction | `POST /v1/render`, `GET /health` |
+| **Reporting Service** (`services.reporting_service`) | `:8004` | Multi-format exports (JSON, CSV, Markdown) & inspection audit store | `POST /v1/reports/generate`, `GET /v1/reports/history`, `GET /health` |
 
 ```mermaid
 flowchart TD
-    A["Raw Road Image<br>(Camera / Dashcam / Drone)"] --> B["Pre-processing<br>(Letterbox Resize 640x640, Aspect Ratio Padding)"]
-    B --> C["Dual Inference Engine"]
+    Client["Web UI / REST Client / Dashcam"] --> GW["API Gateway & Orchestrator (:8000)<br>X-Correlation-ID & Circuit Breaker"]
     
-    subgraph Engine ["Lightweight Inference Layer"]
-        C --> D1["ONNX Runtime Engine<br>(Default, CPU Optimized ~35-50ms)"]
-        C --> D2["PyTorch Engine<br>(Ultralytics YOLOv8n)"]
-    end
-    
-    D1 --> E["Post-processing & NMS<br>(Tensor Unscaling, IoU Filtering)"]
-    D2 --> E
-    
-    E --> F["Defect Classification & Bounding Boxes<br>(Pothole, Longitudinal, Transverse, Alligator)"]
-    
-    F --> G["ASTM D6433 Severity Engine"]
-    
-    subgraph Severity ["Multi-Factor Severity Scoring"]
-        G --> H1["Relative Area Ratio<br>(Area % of Road View)"]
-        G --> H2["Geometric Extent<br>(Aspect Ratio & Orientation)"]
-        G --> H3["Texture & Edge Density<br>(Canny Fracturing & Shadow Depth)"]
-        H1 & H2 & H3 --> H4["Defect Severity Rating<br>(Low / Medium / High)"]
-    end
-    
-    H4 --> I["Pavement Condition Index (PCI)<br>(Road Health 0-100 & Urgent Action Plan)"]
-    
-    I --> J1["Interactive Web Application<br>(Streamlit App)"]
-    I --> J2["Command-Line Interface<br>(Batch & Single Processing)"]
-    I --> J3["Structured Exports<br>(JSON, CSV, Executive Markdown)"]
+    GW -->|"1. POST /v1/detect"| S1["Detection Microservice (:8001)<br>YOLOv8 ONNX / PyTorch Engine"]
+    GW -->|"2. POST /v1/assess"| S2["Severity Microservice (:8002)<br>ASTM D6433 & PCI Health Engine"]
+    GW -->|"3. POST /v1/render"| S3["Visualization Microservice (:8003)<br>OpenCV HUD & Forensic Thumbnails"]
+    GW -->|"4. POST /v1/reports/generate"| S4["Reporting Microservice (:8004)<br>JSON / CSV / Markdown & Audit Log"]
 ```
 
 ---
@@ -116,32 +125,40 @@ $$\text{PCI} = \max\left(0, 100 - \sum_{i} \text{Deduct}(c_i, \text{Severity}_i)
 
 ```
 ├── models/
-│   ├── rdd2022_yolov8n.onnx      # Ultra-lightweight ONNX model (11.7 MB, ~40ms CPU)
-│   └── rdd2022_yolov8n.pt        # Native PyTorch weights (6.25 MB)
-├── road_damage_vision/            # Core Computer Vision & Severity Package
-│   ├── __init__.py               # Top-level exports and API
-│   ├── config.py                 # Classes, ASTM thresholds, deduct weights, color palettes
-│   ├── detector.py               # Dual-engine detector (ONNX / PyTorch), NMS, unscaling
-│   ├── severity.py               # Multi-factor Severity Assessment Engine
-│   ├── visualizer.py             # Color-coded bounding boxes, badges, executive HUD
-│   └── report.py                 # JSON, CSV, and Markdown report generators
-├── samples/                      # Curated benchmark test images
-│   ├── pothole_sample.jpg
-│   ├── alligator_crack_sample.jpg
-│   ├── longitudinal_crack_sample.jpg
-│   ├── transverse_longitudinal_crack.jpg
-│   └── multi_defect_pavement.jpg
+│   ├── rdd2022_india_trained.onnx    # Fine-tuned ONNX model (~40ms CPU)
+│   ├── rdd2022_india_trained.pt      # Fine-tuned PyTorch weights
+│   ├── rdd2022_yolov8n.onnx          # Base RDD2022 ONNX model
+│   └── rdd2022_yolov8n.pt            # Base RDD2022 PyTorch weights
+├── services/                         # Domain-Driven Microservices Layer
+│   ├── common/                       # Shared schemas (DTOs), config, tracing middleware & client
+│   ├── detection_service/            # Port 8001: YOLOv8 Inference & NMS Microservice
+│   ├── severity_service/             # Port 8002: ASTM D6433 & PCI Microservice
+│   ├── visualization_service/        # Port 8003: HUD & Thumbnail Rendering Microservice
+│   ├── reporting_service/            # Port 8004: JSON/CSV/Markdown & Audit Microservice
+│   └── api_gateway/                  # Port 8000: API Gateway & Pipeline Orchestrator
+├── road_damage_vision/               # Core Computer Vision & Severity Domain Library
+│   ├── __init__.py
+│   ├── config.py
+│   ├── detector.py
+│   ├── severity.py
+│   ├── visualizer.py
+│   └── report.py
+├── samples/                          # Curated benchmark test images
 ├── tests/
-│   └── test_pipeline.py          # Automated unit test suite (8 test cases)
-├── static/                       # Next-Gen Cyber-Glassmorphic Frontend
-│   ├── index.html                # Semantic HTML with split slider, loupe, and HUD
-│   ├── styles.css                # Premium dark glassmorphism & keyframe animations
-│   └── app.js                    # Web Audio synth, particle physics, and API client
-├── web_server.py                 # FastAPI Web Server & REST API endpoints
-├── app.py                        # Interactive Streamlit web dashboard
-├── cli.py                        # Command-line interface for single/batch processing
-├── requirements.txt              # Pinned Python dependencies
-└── README.md                     # Comprehensive documentation
+│   ├── test_pipeline.py              # Core domain unit tests (8 test cases)
+│   └── test_microservices.py         # Microservices & API Gateway test suite (4 test cases)
+├── static/                           # Next-Gen Cyber-Glassmorphic Frontend
+│   ├── index.html
+│   ├── styles.css
+│   └── app.js
+├── run_microservices.py              # Multi-process cluster launcher (ports 8000-8004)
+├── docker-compose.yml                # Containerized 5-service deployment definition
+├── Dockerfile                        # Lightweight container image definition
+├── web_server.py                     # Single-command API Gateway entrypoint
+├── app.py                            # Alternative Streamlit dashboard
+├── cli.py                            # Command-line interface for single/batch processing
+├── requirements.txt                  # Pinned Python dependencies
+└── README.md                         # Comprehensive documentation
 ```
 
 ---
@@ -163,15 +180,27 @@ pip install -r requirements.txt
 
 ---
 
-### 2. Next-Gen Full-Stack Web Application (Recommended)
+### 2. Launch the Microservices Application
 
-Launch the modern, animated web application with real-time inference, interactive before/after split slider, 2.5x inspection loupe, and procedural Web Audio feedback:
-
+#### Option A: Single-Command Gateway Mode (Recommended for Local Dev)
+Runs the API Gateway and orchestrates all 4 microservices via the built-in ASGI Microservice Bus:
 ```bash
 python web_server.py
 ```
 
-👉 **Access in your browser at**: `http://127.0.0.1:8000`
+#### Option B: Distributed Multi-Process Cluster (Ports 8000–8004)
+Spawns each microservice in its own dedicated OS process on ports `8001`–`8004` with the API Gateway on `8000`:
+```bash
+python run_microservices.py
+```
+
+#### Option C: Containerized Docker Compose Deployment
+```bash
+docker compose up --build
+```
+
+👉 **Access in your browser at**: [**http://127.0.0.1:8000**](http://127.0.0.1:8000) (or [**http://localhost:8000**](http://localhost:8000))  
+👉 **Interactive OpenAPI Docs**: [**http://127.0.0.1:8000/docs**](http://127.0.0.1:8000/docs)
 
 **Key Website Features:**
 - **Cinematic Cyber-Glassmorphic UI**: Dynamic particle background, holographic glass panels, and glowing laser scanner animation.
@@ -187,7 +216,7 @@ python web_server.py
 
 ### 3. Alternative Streamlit Analytics Dashboard
 
-An alternative Streamlit dashboard is also provided:
+An alternative Streamlit dashboard is also provided (accessible at [**http://localhost:8501**](http://localhost:8501) or via [**Streamlit Cloud**](https://share.streamlit.io/deploy?repository=drkanurag/Road-Damage-Detection-and-Severity-Assessment&branch=main&mainModule=app.py)):
 
 ```bash
 streamlit run app.py
@@ -195,7 +224,7 @@ streamlit run app.py
 
 ---
 
-### 3. Command-Line Interface (CLI)
+### 4. Command-Line Interface (CLI)
 
 #### Analyze a Single Image:
 ```bash

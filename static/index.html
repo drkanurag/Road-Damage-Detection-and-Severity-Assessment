@@ -1,22 +1,31 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RoadVision AI - Road Damage Detection & Severity Assessment</title>
+  <title>RoadVision AI — Autonomous Pavement Intelligence & ASTM D6433 Severity Suite</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <!-- Dynamic Particle Canvas Background -->
+  <!-- Ambient Aurora Glows & Interactive Particle Network -->
+  <div class="ambient-aurora" aria-hidden="true">
+    <div class="aurora-blob blob-1"></div>
+    <div class="aurora-blob blob-2"></div>
+    <div class="aurora-blob blob-3"></div>
+    <div class="blueprint-grid"></div>
+  </div>
   <canvas id="bg-canvas"></canvas>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
 
   <!-- Top Navigation Bar -->
   <header class="navbar">
     <div class="nav-container">
-      <div class="brand">
+      <a href="#" class="brand">
         <div class="brand-icon-wrapper">
           <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M4 19L9 5h6l5 14"/>
@@ -27,17 +36,53 @@
           <div class="brand-glow"></div>
         </div>
         <div class="brand-text">
-          <span class="brand-title">ROADVISION <span class="accent-text">AI</span></span>
-          <span class="brand-subtitle">PAVEMENT INTELLIGENCE & SEVERITY ASSESSMENT</span>
+          <div class="brand-title-row">
+            <span class="brand-title">ROADVISION <span class="accent-text">AI</span></span>
+            <span class="version-pill">v2.4 ENSEMBLE</span>
+          </div>
+          <span class="brand-subtitle">DISTRIBUTED PAVEMENT INTELLIGENCE &amp; ASTM D6433 SUITE</span>
         </div>
-      </div>
+      </a>
+
+      <nav class="nav-links-group" aria-label="Primary Navigation">
+        <a href="#control-deck" class="nav-link">Workspace</a>
+        <a href="#results-section" class="nav-link">Diagnostics</a>
+        <a href="#standards-section" class="nav-link">ASTM D6433</a>
+        <a href="#about-section" class="nav-link">Microservices</a>
+        <a href="/docs" target="_blank" rel="noopener" class="nav-link nav-link-api">
+          <span>OpenAPI</span>
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        </a>
+      </nav>
 
       <div class="nav-badges">
-        <div class="system-status-pill">
+        <div class="system-status-pill" title="5-Service Mesh & Dual-Model WBF Ensemble Ready">
           <span class="pulse-dot"></span>
-          <span class="status-label" id="engine-status">ONNX CPU ENGINE READY</span>
+          <span class="status-label" id="engine-status">WBF ENSEMBLE READY</span>
         </div>
-        <button id="sound-toggle-btn" class="icon-btn" title="Toggle Futuristic Sound FX">
+
+        <!-- Segmented Theme Switch (Dark / Light) -->
+        <button id="theme-toggle-btn" class="theme-switch-btn" title="Switch between Dark Mode and Light Mode (Shortcut: T)" aria-label="Toggle Dark/Light Theme">
+          <span class="theme- icon-wrap">
+            <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+              <circle cx="12" cy="12" r="5"/>
+              <line x1="12" y1="1" x2="12" y2="3"/>
+              <line x1="12" y1="21" x2="12" y2="23"/>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+              <line x1="1" y1="12" x2="3" y2="12"/>
+              <line x1="21" y1="12" x2="23" y2="12"/>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+            </svg>
+            <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            </svg>
+          </span>
+          <span class="theme-switch-label" id="theme-switch-label">DARK</span>
+        </button>
+
+        <button id="sound-toggle-btn" class="icon-btn" title="Toggle UI Acoustic Telemetry">
           <svg class="sound-icon-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
             <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
@@ -48,8 +93,6 @@
             <line x1="17" y1="9" x2="23" y2="15"/>
           </svg>
         </button>
-        <a href="#standards-section" class="nav-link">ASTM D6433</a>
-        <a href="#about-section" class="nav-link">About Model</a>
       </div>
     </div>
   </header>
@@ -60,17 +103,16 @@
     <!-- Hero Section -->
     <section class="hero-section">
       <div class="hero-badge animate-fade-in">
-        <span class="badge-icon">⚡</span>
-        <span>YOLOv8-Nano (RDD2022) • Multi-Factor ASTM D6433 Severity Engine • Edge Ready</span>
+        <span class="badge-live-dot"></span>
+        <span>Dual-Model YOLOv8 WBF Ensemble • Morphological Black-Hat ASTM D6433 Engine • 5-Microservice Mesh</span>
       </div>
       <h1 class="hero-title animate-fade-in-up">
-        Next-Gen Autonomous <br>
-        <span class="gradient-text">Road Defect Localization & Severity</span>
+        Autonomous Civil Infrastructure <br>
+        <span class="gradient-text">Defect Localization &amp; Structural Triage</span>
       </h1>
       <p class="hero-description animate-fade-in-up delay-1">
-        Instantly detect, localize, and classify road damage into 
-        <strong>Potholes</strong>, <strong>Longitudinal Cracks</strong>, <strong>Transverse Cracks</strong>, and <strong>Alligator Cracks</strong>.
-        Calculates pavement distress severity (<strong>Low</strong>, <strong>Medium</strong>, <strong>High</strong>) and computes the composite Pavement Condition Index (PCI 0–100) in under 50 milliseconds.
+        High-precision computer vision pipeline fusing <strong>Global Multi-Class RDD2022</strong> and <strong>Regional Pothole Specialist</strong> models via Weighted Box Fusion (WBF).
+        Grades distress severity (<strong>Low</strong>, <strong>Medium</strong>, <strong>High</strong>) and computes the composite <strong>Pavement Condition Index (PCI 0–100)</strong> in ~55 ms on CPU.
       </p>
 
       <!-- Category Tags Carousel -->
@@ -78,7 +120,7 @@
         <div class="cat-chip chip-pothole">
           <span class="chip-dot"></span>
           <span class="chip-code">D40</span>
-          <span class="chip-name">Pothole</span>
+          <span class="chip-name">Pothole Cavity</span>
         </div>
         <div class="cat-chip chip-longitudinal">
           <span class="chip-dot"></span>
@@ -93,21 +135,26 @@
         <div class="cat-chip chip-alligator">
           <span class="chip-dot"></span>
           <span class="chip-code">D20</span>
-          <span class="chip-name">Alligator Crack</span>
+          <span class="chip-name">Alligator Fatigue</span>
         </div>
         <div class="cat-chip chip-severity">
           <span class="chip-dot"></span>
+          <span class="chip-code">ASTM</span>
           <span class="chip-name">Low • Medium • High</span>
         </div>
       </div>
     </section>
 
     <!-- Upload & Interactive Control Deck -->
-    <section class="control-deck-section">
+    <section class="control-deck-section" id="control-deck">
       <div class="deck-grid">
 
-        <!-- Upload & Drop Zone -->
+        <!-- Left: Upload & Drop Zone -->
         <div class="glass-card upload-card" id="drop-zone">
+          <div class="corner-accents" aria-hidden="true">
+            <span class="corner tl"></span><span class="corner tr"></span>
+            <span class="corner bl"></span><span class="corner br"></span>
+          </div>
           <div class="drop-zone-content">
             <div class="upload-icon-wrapper">
               <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -117,20 +164,24 @@
               </svg>
               <div class="upload-radar-pulse"></div>
             </div>
-            <h3 class="upload-prompt">Upload Pavement Imagery</h3>
-            <p class="upload-subprompt">Drag & drop your road photo, paste directly (<kbd>Ctrl+V</kbd>), or</p>
+            <h3 class="upload-prompt">Drop Roadway Imagery for Inspection</h3>
+            <p class="upload-subprompt">Drag &amp; drop dashcam or drone frames, paste from clipboard (<kbd>Ctrl</kbd>+<kbd>V</kbd>), or</p>
             <div class="upload-actions">
               <label for="file-input" class="btn btn-primary">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                Browse Files
+                Upload Image
               </label>
               <input type="file" id="file-input" accept="image/*" style="display:none;">
-              <button id="webcam-btn" class="btn btn-secondary">
+              <button id="webcam-btn" class="btn btn-secondary" type="button">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
                 Live Camera
               </button>
             </div>
-            <span class="upload-specs">JPG, PNG, WEBP, BMP up to 25 MB</span>
+            <div class="upload-meta-pills">
+              <span class="upload-specs">JPG • PNG • WEBP • BMP</span>
+              <span class="upload-specs">640×640 Letterbox Tensor</span>
+              <span class="upload-specs">Up to 25 MB</span>
+            </div>
           </div>
 
           <!-- Scanner overlay during inference -->
@@ -140,55 +191,74 @@
             <div class="scanner-status">
               <div class="spinner-cyber"></div>
               <span class="scanner-text" id="scanner-status-text">DECODING ASPHALT FEATURES...</span>
+              <span class="scanner-subtext">Executing Dual-Model WBF + Black-Hat Morphology</span>
             </div>
           </div>
         </div>
 
-        <!-- Quick Curated Samples Showcase -->
+        <!-- Right: Curated Benchmark Showcase & Hyperparameters -->
         <div class="glass-card samples-card">
           <div class="card-header">
-            <h3 class="card-title">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-              Benchmark Test Showcase
-            </h3>
-            <span class="card-badge">Instant 1-Click Tests</span>
+            <div>
+              <h3 class="card-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                Curated Field Benchmark Suite
+              </h3>
+              <p class="samples-sub">Click any calibrated highway or urban corridor frame to benchmark live accuracy:</p>
+            </div>
+            <span class="card-badge">9 Field Scenarios</span>
           </div>
-          <p class="samples-sub">Select any pre-calibrated pavement scenario to inspect detection accuracy:</p>
+
           <div class="samples-grid" id="samples-container">
             <!-- Dynamically populated sample tiles -->
           </div>
 
           <!-- Detection Parameters Drawer -->
           <div class="parameters-deck">
-            <div class="param-row">
-              <div class="param-label-group">
-                <label for="conf-slider">Detection Confidence Threshold:</label>
-                <span class="param-val" id="conf-val">25%</span>
+            <div class="params-grid-two">
+              <div class="param-row">
+                <div class="param-label-group">
+                  <label for="conf-slider">Confidence Threshold</label>
+                  <span class="param-val" id="conf-val">25%</span>
+                </div>
+                <input type="range" id="conf-slider" min="10" max="90" value="25" step="5" class="slider-cyber">
               </div>
-              <input type="range" id="conf-slider" min="10" max="90" value="25" step="5" class="slider-cyber">
-            </div>
-            <div class="param-row">
-              <div class="param-label-group">
-                <label for="iou-slider">NMS IoU Overlap Filter:</label>
-                <span class="param-val" id="iou-val">45%</span>
+              <div class="param-row">
+                <div class="param-label-group">
+                  <label for="iou-slider">NMS IoU Overlap</label>
+                  <span class="param-val" id="iou-val">45%</span>
+                </div>
+                <input type="range" id="iou-slider" min="10" max="80" value="45" step="5" class="slider-cyber">
               </div>
-              <input type="range" id="iou-slider" min="10" max="80" value="45" step="5" class="slider-cyber">
             </div>
 
-            <!-- Display Toggles -->
-            <div class="toggle-pills">
-              <label class="toggle-pill">
-                <input type="checkbox" id="toggle-hud" checked>
-                <span>HUD Banner</span>
-              </label>
-              <label class="toggle-pill">
-                <input type="checkbox" id="toggle-badges" checked>
-                <span>Severity Badges</span>
-              </label>
-              <label class="toggle-pill">
-                <input type="checkbox" id="toggle-conf" checked>
-                <span>Conf %</span>
-              </label>
+            <!-- Display Toggles & Engine Selector -->
+            <div class="params-bottom-bar">
+              <div class="toggle-pills">
+                <label class="toggle-pill">
+                  <input type="checkbox" id="toggle-hud" checked>
+                  <span>HUD Telemetry</span>
+                </label>
+                <label class="toggle-pill">
+                  <input type="checkbox" id="toggle-badges" checked>
+                  <span>Severity Tags</span>
+                </label>
+                <label class="toggle-pill">
+                  <input type="checkbox" id="toggle-conf" checked>
+                  <span>Confidence %</span>
+                </label>
+                <label class="toggle-pill">
+                  <input type="checkbox" id="toggle-interactive-boxes" checked>
+                  <span>Interactive Vectors</span>
+                </label>
+              </div>
+              <div class="engine-select-wrap">
+                <label for="backend-select" class="sr-only">Engine</label>
+                <select id="backend-select" class="engine-select" title="Select Inference Runtime">
+                  <option value="onnx" selected>⚡ ONNX WBF Ensemble</option>
+                  <option value="pytorch">🔥 PyTorch Ultralytics</option>
+                </select>
+              </div>
             </div>
           </div>
         </div>
@@ -196,8 +266,44 @@
       </div>
     </section>
 
-    <!-- Inspection Results Section (Hidden until analyzed) -->
+    <!-- Inspection Results Section -->
     <section class="results-section" id="results-section" style="display: none;">
+
+      <!-- Distributed Microservice Trace & Pipeline Telemetry Bar -->
+      <div class="glass-card trace-ribbon" id="trace-ribbon">
+        <div class="trace-left">
+          <span class="trace-badge">LIVE SERVICE MESH</span>
+          <span class="trace-corr" id="trace-corr-id" title="Click to copy X-Correlation-ID">trace: initializing...</span>
+        </div>
+        <div class="trace-nodes" id="trace-nodes">
+          <div class="trace-node">
+            <span class="node-dot dot-cyan"></span>
+            <span class="node-name">Detection :8001</span>
+            <span class="node-ms" id="trace-det-ms">-- ms</span>
+          </div>
+          <span class="trace-arrow">→</span>
+          <div class="trace-node">
+            <span class="node-dot dot-amber"></span>
+            <span class="node-name">Severity :8002</span>
+            <span class="node-ms" id="trace-sev-ms">-- ms</span>
+          </div>
+          <span class="trace-arrow">→</span>
+          <div class="trace-node">
+            <span class="node-dot dot-purple"></span>
+            <span class="node-name">Visualization :8003</span>
+            <span class="node-ms" id="trace-vis-ms">-- ms</span>
+          </div>
+          <span class="trace-arrow">→</span>
+          <div class="trace-node">
+            <span class="node-dot dot-emerald"></span>
+            <span class="node-name">Reporting :8004</span>
+            <span class="node-ms" id="trace-rep-ms">-- ms</span>
+          </div>
+        </div>
+        <div class="trace-right">
+          <span class="trace-source" id="trace-source-label">source: sample</span>
+        </div>
+      </div>
 
       <!-- Top KPI Metric Cards Bar -->
       <div class="kpi-grid">
@@ -205,17 +311,25 @@
         <!-- PCI Radial Gauge Card -->
         <div class="glass-card kpi-card kpi-pci">
           <div class="kpi-header">
-            <span class="kpi-title">PCI HEALTH SCORE</span>
+            <span class="kpi-title">PAVEMENT CONDITION INDEX</span>
             <span class="status-indicator-badge" id="kpi-status-badge">CRITICAL</span>
           </div>
-          <div class="pci-gauge-container">
-            <svg class="pci-gauge-svg" viewBox="0 0 120 120">
-              <circle class="gauge-track" cx="60" cy="60" r="50"></circle>
-              <circle class="gauge-fill" id="gauge-circle" cx="60" cy="60" r="50"></circle>
-            </svg>
-            <div class="gauge-value-box">
-              <span class="gauge-number" id="kpi-pci-val">33</span>
-              <span class="gauge-max">/100</span>
+          <div class="pci-gauge-row">
+            <div class="pci-gauge-container">
+              <svg class="pci-gauge-svg" viewBox="0 0 120 120">
+                <circle class="gauge-track" cx="60" cy="60" r="50"></circle>
+                <circle class="gauge-fill" id="gauge-circle" cx="60" cy="60" r="50"></circle>
+              </svg>
+              <div class="gauge-value-box">
+                <span class="gauge-number" id="kpi-pci-val">33</span>
+                <span class="gauge-max">PCI / 100</span>
+              </div>
+            </div>
+            <div class="pci-scale-legend">
+              <div class="scale-item"><span class="scale-dot good"></span>85–100 Good</div>
+              <div class="scale-item"><span class="scale-dot fair"></span>65–84 Fair</div>
+              <div class="scale-item"><span class="scale-dot poor"></span>40–64 Poor</div>
+              <div class="scale-item"><span class="scale-dot crit"></span>0–39 Critical</div>
             </div>
           </div>
           <div class="kpi-footer-note" id="kpi-urgency-note">URGENT HAZARD INTERVENTION</div>
@@ -224,22 +338,27 @@
         <!-- Total Defects Card -->
         <div class="glass-card kpi-card">
           <div class="kpi-header">
-            <span class="kpi-title">TOTAL DEFECTS IDENTIFIED</span>
-            <svg class="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span class="kpi-title">LOCALIZED DEFECTS</span>
+            <svg class="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
           </div>
-          <div class="kpi-large-number" id="kpi-total-defects">4</div>
+          <div class="kpi-large-number" id="kpi-total-defects">0</div>
+          <div class="severity-stacked-bar" id="kpi-sev-bar">
+            <div class="sev-seg seg-high" id="seg-high" style="width: 33%"></div>
+            <div class="sev-seg seg-med" id="seg-med" style="width: 33%"></div>
+            <div class="sev-seg seg-low" id="seg-low" style="width: 34%"></div>
+          </div>
           <div class="severity-mini-bars">
             <div class="mini-bar-item">
               <span class="mini-bar-label red-dot">High:</span>
-              <span class="mini-bar-count" id="count-high">2</span>
+              <span class="mini-bar-count" id="count-high">0</span>
             </div>
             <div class="mini-bar-item">
               <span class="mini-bar-label amber-dot">Med:</span>
-              <span class="mini-bar-count" id="count-med">1</span>
+              <span class="mini-bar-count" id="count-med">0</span>
             </div>
             <div class="mini-bar-item">
               <span class="mini-bar-label green-dot">Low:</span>
-              <span class="mini-bar-count" id="count-low">1</span>
+              <span class="mini-bar-count" id="count-low">0</span>
             </div>
           </div>
         </div>
@@ -247,21 +366,21 @@
         <!-- Critical Severity Hazards -->
         <div class="glass-card kpi-card">
           <div class="kpi-header">
-            <span class="kpi-title">CRITICAL HAZARDS</span>
+            <span class="kpi-title">STRUCTURAL HAZARDS</span>
             <span class="hazard-pulse-chip" id="kpi-hazard-chip">ACUTE RISK</span>
           </div>
-          <div class="kpi-large-number danger-text" id="kpi-critical-defects">2</div>
+          <div class="kpi-large-number danger-text" id="kpi-critical-defects">0</div>
           <div class="kpi-subtext" id="kpi-hazard-sub">Deep pothole or structural base fatigue detected requiring immediate dispatch.</div>
         </div>
 
         <!-- Latency & Model Performance -->
         <div class="glass-card kpi-card">
           <div class="kpi-header">
-            <span class="kpi-title">INFERENCE LATENCY</span>
-            <span class="fps-badge" id="kpi-fps">28.4 FPS</span>
+            <span class="kpi-title">INFERENCE THROUGHPUT</span>
+            <span class="fps-badge" id="kpi-fps">18.2 FPS</span>
           </div>
-          <div class="kpi-large-number tech-text" id="kpi-latency">34.2 <span class="kpi-unit">ms</span></div>
-          <div class="kpi-subtext" id="kpi-backend-info">ONNX Runtime (CPU-optimized, 0 GPU required)</div>
+          <div class="kpi-large-number tech-text" id="kpi-latency">54.8 <span class="kpi-unit">ms</span></div>
+          <div class="kpi-subtext" id="kpi-backend-info">ONNX Runtime (Dual-Model WBF Ensemble, CPU-optimized)</div>
         </div>
 
       </div>
@@ -269,50 +388,61 @@
       <!-- Visual Inspection Stage -->
       <div class="glass-card stage-card">
         <div class="stage-toolbar">
-          <div class="stage-tabs">
-            <button class="stage-tab active" data-mode="split" id="tab-split">
+          <div class="stage-tabs" role="tablist">
+            <button class="stage-tab active" data-mode="split" id="tab-split" type="button">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
-              Interactive Split Slider
+              Interactive Split Comparison
             </button>
-            <button class="stage-tab" data-mode="side" id="tab-side">
+            <button class="stage-tab" data-mode="side" id="tab-side" type="button">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="9" height="18" rx="1"/><rect x="13" y="3" width="9" height="18" rx="1"/></svg>
               Side-by-Side Dual View
             </button>
-            <button class="stage-tab" data-mode="annotated" id="tab-annotated">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-              Full Annotated View
+            <button class="stage-tab" data-mode="annotated" id="tab-annotated" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+              Interactive Vector Stage
+            </button>
+            <button class="stage-tab" data-mode="report" id="tab-report" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              Executive Engineering Report
             </button>
           </div>
 
           <div class="stage-tools">
-            <label class="loupe-toggle-label" title="Hover to view 2.5x magnification crosshairs">
+            <div class="quick-split-presets" id="split-presets">
+              <button type="button" class="preset-btn" data-split="0" title="Show 100% Raw Image">Raw</button>
+              <button type="button" class="preset-btn active" data-split="50" title="50/50 Split">50/50</button>
+              <button type="button" class="preset-btn" data-split="100" title="Show 100% AI Annotated">AI</button>
+            </div>
+            <label class="loupe-toggle-label" title="Hover over image to inspect with 2.5x optical loupe">
               <input type="checkbox" id="loupe-toggle" checked>
-              <span>🔍 2.5x Inspection Loupe</span>
+              <span>🔍 2.5× Loupe</span>
             </label>
-            <button id="download-annotated-btn" class="btn btn-secondary btn-sm" title="Download High-Res Annotated Image">
+            <button id="download-annotated-btn" class="btn btn-secondary btn-sm" type="button" title="Download High-Res Annotated Image">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Save Image
+              Save Annotated
             </button>
           </div>
         </div>
 
-        <!-- Mode 1: Split Slider View -->
+        <!-- Mode 1: Split Slider View (Pixel-Locked Clip-Path Engine) -->
         <div class="split-view-container" id="split-view">
           <div class="split-wrapper" id="split-wrapper">
             <img id="img-raw" class="split-img raw-img" alt="Raw Road Image">
             <div class="split-overlay" id="split-overlay">
               <img id="img-annotated" class="split-img annotated-img" alt="Annotated Road Image">
             </div>
+            <!-- Interactive SVG Vector Bounding Box Overlay -->
+            <svg id="bbox-svg-overlay" class="bbox-svg-overlay" preserveAspectRatio="xMidYMid meet"></svg>
             <!-- Interactive draggable neon divider -->
             <div class="split-handle" id="split-handle">
               <div class="handle-line"></div>
               <div class="handle-button">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/><polyline points="9 18 3 12 9 6"/><polyline points="21 18 15 12 21 6"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="15 18 9 12 15 6"/><polyline points="9 18 3 12 9 6"/><polyline points="21 18 15 12 21 6"/></svg>
               </div>
             </div>
             <!-- Labels -->
-            <span class="split-tag tag-left">RAW ROAD SURFACE</span>
-            <span class="split-tag tag-right">AI ANNOTATED DAMAGE</span>
+            <span class="split-tag tag-left">AI ANNOTATED OVERLAY</span>
+            <span class="split-tag tag-right">RAW PAVEMENT SURFACE</span>
           </div>
           <!-- Magnifying Loupe -->
           <div class="magnifier-glass" id="magnifier"></div>
@@ -321,18 +451,38 @@
         <!-- Mode 2: Side-by-Side Dual View -->
         <div class="side-view-container" id="side-view" style="display: none;">
           <div class="side-panel">
-            <div class="panel-header">Raw Road Surface</div>
+            <div class="panel-header">
+              <span>RAW PAVEMENT INPUT</span>
+              <span class="panel-res" id="raw-res-badge">640×640</span>
+            </div>
             <img id="side-raw-img" class="side-img" alt="Raw Image">
           </div>
           <div class="side-panel">
-            <div class="panel-header">AI Detections & Severity HUD</div>
+            <div class="panel-header">
+              <span>AI DETECTIONS &amp; ASTM SEVERITY HUD</span>
+              <span class="panel-res accent-text">YOLOv8 WBF ENSEMBLE</span>
+            </div>
             <img id="side-annotated-img" class="side-img" alt="Annotated Image">
           </div>
         </div>
 
-        <!-- Mode 3: Single Annotated View -->
+        <!-- Mode 3: Single Interactive Vector Stage -->
         <div class="single-view-container" id="single-view" style="display: none;">
-          <img id="single-annotated-img" class="single-img" alt="Annotated Image">
+          <div class="single-stage-wrap">
+            <img id="single-annotated-img" class="single-img" alt="Annotated Image">
+            <svg id="single-bbox-svg" class="bbox-svg-overlay" preserveAspectRatio="xMidYMid meet"></svg>
+          </div>
+        </div>
+
+        <!-- Mode 4: Executive Engineering Report View -->
+        <div class="report-view-container" id="report-view" style="display: none;">
+          <div class="report-toolbar">
+            <span class="report-doc-tag">GENERATED BY REPORTING MICROSERVICE (:8004)</span>
+            <button id="copy-markdown-btn" class="btn btn-secondary btn-sm" type="button">
+              📋 Copy Markdown Report
+            </button>
+          </div>
+          <pre class="markdown-report-box" id="markdown-report-box">Run an inspection to generate the ASTM D6433 engineering report...</pre>
         </div>
       </div>
 
@@ -341,20 +491,20 @@
 
         <!-- Left: Defect Cards List with Filtering -->
         <div class="glass-card forensics-card">
-          <div class="card-header">
+          <div class="card-header forensics-header">
             <div>
               <h3 class="card-title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-                Detected Distress Log & Forensics
+                Forensic Distress Log &amp; Morphological Telemetry
               </h3>
-              <span class="card-subtitle">Click or hover any defect card to inspect bounding box and engineering assessment</span>
+              <span class="card-subtitle">Hover or click any card to spotlight its vector bounding box on the inspection stage</span>
             </div>
             <!-- Filter Pills -->
             <div class="filter-pills" id="filter-pills">
-              <button class="filter-btn active" data-filter="all">All (<span id="filter-all-count">0</span>)</button>
-              <button class="filter-btn filter-high" data-filter="High">🔴 High (<span id="filter-high-count">0</span>)</button>
-              <button class="filter-btn filter-med" data-filter="Medium">🟠 Med (<span id="filter-med-count">0</span>)</button>
-              <button class="filter-btn filter-low" data-filter="Low">🟢 Low (<span id="filter-low-count">0</span>)</button>
+              <button class="filter-btn active" data-filter="all" type="button">All (<span id="filter-all-count">0</span>)</button>
+              <button class="filter-btn filter-high" data-filter="High" type="button">🔴 High (<span id="filter-high-count">0</span>)</button>
+              <button class="filter-btn filter-med" data-filter="Medium" type="button">🟠 Med (<span id="filter-med-count">0</span>)</button>
+              <button class="filter-btn filter-low" data-filter="Low" type="button">🟢 Low (<span id="filter-low-count">0</span>)</button>
             </div>
           </div>
 
@@ -363,7 +513,7 @@
           </div>
         </div>
 
-        <!-- Right: Action Plan & Export Hub -->
+        <!-- Right: Action Plan, Civil Repair Estimator & Export Hub -->
         <div class="glass-card actions-card">
           <div class="card-header">
             <h3 class="card-title">
@@ -377,9 +527,32 @@
             <!-- Action items populated dynamically -->
           </div>
 
+          <!-- Civil Engineering Repair & Dispatch Estimator -->
+          <div class="repair-estimator-box" id="repair-estimator-box">
+            <h4 class="box-title">CIVIL ENGINEERING TRIAGE &amp; WORK ORDER ESTIMATE</h4>
+            <div class="estimator-grid">
+              <div class="est-metric">
+                <span class="est-label">Dispatch SLA</span>
+                <span class="est-val" id="est-sla">&lt; 24 Hours</span>
+              </div>
+              <div class="est-metric">
+                <span class="est-label">Damaged Surface Ratio</span>
+                <span class="est-val" id="est-area-total">0.00%</span>
+              </div>
+              <div class="est-metric">
+                <span class="est-label">Primary Treatment</span>
+                <span class="est-val" id="est-treatment">Routine Survey</span>
+              </div>
+              <div class="est-metric">
+                <span class="est-label">Mean Confidence</span>
+                <span class="est-val" id="est-mean-conf">0%</span>
+              </div>
+            </div>
+          </div>
+
           <!-- Distress Breakdown Charts -->
           <div class="distress-charts-box">
-            <h4 class="box-title">Defect Distribution</h4>
+            <h4 class="box-title">DEFECT CATEGORY DISTRIBUTION</h4>
             <div class="chart-bars" id="class-chart-bars">
               <!-- Mini bars populated dynamically -->
             </div>
@@ -387,17 +560,17 @@
 
           <!-- Export Actions -->
           <div class="export-hub">
-            <h4 class="box-title">Export Inspection Data</h4>
+            <h4 class="box-title">EXPORT INSPECTION ARTIFACTS</h4>
             <div class="export-btn-group">
-              <button id="btn-export-json" class="btn btn-export">
+              <button id="btn-export-json" class="btn btn-export" type="button">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg>
-                JSON Report
+                JSON Payload
               </button>
-              <button id="btn-export-csv" class="btn btn-export">
+              <button id="btn-export-csv" class="btn btn-export" type="button">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
-                CSV Defects Log
+                CSV Log
               </button>
-              <button id="btn-export-print" class="btn btn-export">
+              <button id="btn-export-print" class="btn btn-export" type="button">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
                 Print / PDF
               </button>
@@ -413,9 +586,9 @@
     <!-- Standards & Reference Section -->
     <section class="standards-section" id="standards-section">
       <div class="section-header">
-        <span class="section-tag">ENGINEERING FOUNDATION</span>
+        <span class="section-tag">CIVIL ENGINEERING FOUNDATION</span>
         <h2 class="section-title">ASTM D6433 Pavement Distress Standards</h2>
-        <p class="section-desc">How our AI models grade pavement damage severity according to civil engineering guidelines.</p>
+        <p class="section-desc">Multi-factor geometric, Black-Hat morphological fissure density, and annular rim-to-core contrast criteria used to grade road damage.</p>
       </div>
 
       <div class="standards-grid">
@@ -427,11 +600,11 @@
               <span class="std-code">Bowl-shaped structural cavity</span>
             </div>
           </div>
-          <p class="std-desc">Formed by asphalt layer crumbling under traffic when subgrade moisture softens base support.</p>
+          <p class="std-desc">Formed by asphalt surface disintegration and base course erosion under traffic and moisture infiltration.</p>
           <ul class="std-criteria">
-            <li><strong>Low:</strong> Diameter &lt; 150mm or area &lt; 0.4%, shallow depth &lt; 25mm.</li>
-            <li><strong>Medium:</strong> Diameter 150–300mm or area 0.4%–1.5%, depth 25–50mm.</li>
-            <li><strong>High:</strong> Diameter &gt; 300mm or area &gt; 1.5%, depth &gt; 50mm, sharp rims.</li>
+            <li><strong>Low:</strong> Diameter &lt; 150mm or area &lt; 0.45%, shallow bowl depth (&lt; 25mm).</li>
+            <li><strong>Medium:</strong> Diameter 150–300mm or area 0.45%–1.40%, moderate bowl depth.</li>
+            <li><strong>High:</strong> Diameter &gt; 300mm or area &gt; 1.40%, high rim-to-core shadow contrast.</li>
           </ul>
         </div>
 
@@ -440,14 +613,14 @@
             <span class="std-icon alligator-bg">🐊</span>
             <div>
               <h3 class="std-name">Alligator Cracking (D20)</h3>
-              <span class="std-code">Fatigue / chicken-wire pattern</span>
+              <span class="std-code">Fatigue / interconnected polygons</span>
             </div>
           </div>
-          <p class="std-desc">Interconnected cracks caused by repetitive wheel loading on pavements with weakened subgrade.</p>
+          <p class="std-desc">Interconnected fatigue cracking caused by repeated traffic loading over a weakened or saturated base layer.</p>
           <ul class="std-criteria">
-            <li><strong>Low:</strong> Fine parallel hairline cracks with few interconnecting lines.</li>
-            <li><strong>Medium:</strong> Interconnected chicken-wire pattern with minor edge spalling.</li>
-            <li><strong>High:</strong> Severe polygon spalling, loose blocks that move under traffic.</li>
+            <li><strong>Low:</strong> Fine hairline longitudinal fissures with minimal cross-connection.</li>
+            <li><strong>Medium:</strong> Defined polygon network (0.75%–2.20% area) with moderate fissure density.</li>
+            <li><strong>High:</strong> Spalled loose polygonal blocks (&gt; 2.20% area, Black-Hat fissure density &ge; 0.28).</li>
           </ul>
         </div>
 
@@ -456,14 +629,14 @@
             <span class="std-icon long-bg">📏</span>
             <div>
               <h3 class="std-name">Longitudinal Cracks (D00)</h3>
-              <span class="std-code">Parallel to road centerline</span>
+              <span class="std-code">Parallel to pavement centerline</span>
             </div>
           </div>
-          <p class="std-desc">Caused by poorly constructed lane joints, asphalt fatigue in wheel paths, or pavement hardening.</p>
+          <p class="std-desc">Paving lane joint separation, wheel-path load fatigue, or differential subgrade settlement.</p>
           <ul class="std-criteria">
-            <li><strong>Low:</strong> Width &lt; 6mm, length span &lt; 14%, intact joint lips.</li>
-            <li><strong>Medium:</strong> Width 6–20mm, span 14%–32%, minor edge chipping.</li>
-            <li><strong>High:</strong> Width &gt; 20mm, continuous wide fracture with aggregate loss.</li>
+            <li><strong>Low:</strong> Hairline width &lt; 6mm, normalized span &lt; 14% with intact edges.</li>
+            <li><strong>Medium:</strong> Width 6–20mm, span 14%–32% with minor lip chipping.</li>
+            <li><strong>High:</strong> Wide open fissure &gt; 20mm, span &ge; 32% with severe aggregate raveling.</li>
           </ul>
         </div>
 
@@ -472,14 +645,82 @@
             <span class="std-icon trans-bg">🛣️</span>
             <div>
               <h3 class="std-name">Transverse Cracks (D10)</h3>
-              <span class="std-code">Perpendicular to roadway</span>
+              <span class="std-code">Perpendicular to traffic flow</span>
             </div>
           </div>
-          <p class="std-desc">Thermal contraction fractures caused by rapid temperature drops or joint reflection from underlying layers.</p>
+          <p class="std-desc">Thermally induced shrinkage fractures or reflection cracking from underlying concrete slabs.</p>
           <ul class="std-criteria">
-            <li><strong>Low:</strong> Hairline width &lt; 6mm, partial lane span, smooth ride.</li>
-            <li><strong>Medium:</strong> Width 6–20mm, partial/full lane span, slight edge spall.</li>
-            <li><strong>High:</strong> Major fracture &gt; 20mm, full lane span with vertical displacement.</li>
+            <li><strong>Low:</strong> Narrow crack &lt; 6mm spanning &lt; 14% of frame width.</li>
+            <li><strong>Medium:</strong> Moderate opening (6–20mm), span 14%–32% with slight roughness.</li>
+            <li><strong>High:</strong> Full-lane structural fracture (&ge; 32% span) causing perceptible vehicle jolt.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Microservices Architecture & Model Section -->
+    <section class="standards-section" id="about-section">
+      <div class="section-header">
+        <span class="section-tag">DISTRIBUTED SYSTEM DESIGN</span>
+        <h2 class="section-title">5-Service Microservices Mesh &amp; Dual-Model Ensemble</h2>
+        <p class="section-desc">Domain-driven microservices with strict Pydantic v2 contracts, X-Correlation-ID distributed tracing, and zero-downtime circuit-breaker fallback.</p>
+      </div>
+
+      <div class="standards-grid" id="microservices-grid">
+        <div class="glass-card standard-card">
+          <div class="std-header">
+            <span class="std-icon long-bg">🌐</span>
+            <div>
+              <h3 class="std-name">API Gateway (:8000)</h3>
+              <span class="std-code">services.api_gateway</span>
+            </div>
+          </div>
+          <p class="std-desc">Edge router, request validator, circuit breaker, and 4-stage asynchronous pipeline orchestrator.</p>
+          <ul class="std-criteria">
+            <li><strong>Route:</strong> <code>POST /api/detect</code> &amp; <code>/v1/inspect</code></li>
+            <li><strong>Resilience:</strong> Automatic local fallback on downstream timeout</li>
+          </ul>
+        </div>
+        <div class="glass-card standard-card">
+          <div class="std-header">
+            <span class="std-icon pothole-bg">🎯</span>
+            <div>
+              <h3 class="std-name">Detection Service (:8001)</h3>
+              <span class="std-code">POST /v1/detect</span>
+            </div>
+          </div>
+          <p class="std-desc">Dual-Model YOLOv8-Nano ONNX Runtime engine fusing Global Multi-Class and Regional Specialist models.</p>
+          <ul class="std-criteria">
+            <li><strong>Fusion:</strong> Domain-Aware Gated Weighted Box Fusion (WBF)</li>
+            <li><strong>Suppression:</strong> Containment-Aware NMS ($\text{IoMin} \ge 0.72$)</li>
+          </ul>
+        </div>
+        <div class="glass-card standard-card">
+          <div class="std-header">
+            <span class="std-icon trans-bg">📐</span>
+            <div>
+              <h3 class="std-name">Severity Service (:8002)</h3>
+              <span class="std-code">POST /v1/assess</span>
+            </div>
+          </div>
+          <p class="std-desc">Stateless ASTM D6433 grading engine with Morphological Black-Hat fissure isolation and PCI calculation.</p>
+          <ul class="std-criteria">
+            <li><strong>Features:</strong> Black-Hat morphology + annular rim-to-core contrast</li>
+            <li><strong>Geometry:</strong> Perspective foreshortening compensation</li>
+          </ul>
+        </div>
+        <div class="glass-card standard-card">
+          <div class="std-header">
+            <span class="std-icon alligator-bg">🎨</span>
+            <div>
+              <h3 class="std-name">Vis &amp; Reporting (:8003/:8004)</h3>
+              <span class="std-code">POST /v1/render • /v1/reports</span>
+            </div>
+          </div>
+          <p class="std-desc">High-contrast OpenCV HUD &amp; ROI crop rendering paired with JSON, CSV, and Markdown report synthesis.</p>
+          <ul class="std-criteria">
+            <li><strong>Visuals:</strong> Corner bracket reticles + translucent severity fills</li>
+            <li><strong>Exports:</strong> Schema-validated JSON, CSV, and Markdown</li>
           </ul>
         </div>
       </div>
@@ -489,15 +730,15 @@
     <div class="modal-backdrop" id="camera-modal" style="display: none;">
       <div class="glass-card modal-card">
         <div class="modal-header">
-          <h3 class="modal-title">Live Inspection Camera</h3>
-          <button class="modal-close-btn" id="camera-close-btn">&times;</button>
+          <h3 class="modal-title">Live Roadway Inspection Camera</h3>
+          <button class="modal-close-btn" id="camera-close-btn" type="button">&times;</button>
         </div>
         <div class="camera-stream-wrapper">
           <video id="webcam-video" autoplay playsinline></video>
           <canvas id="webcam-canvas" style="display:none;"></canvas>
         </div>
         <div class="modal-actions">
-          <button id="snap-btn" class="btn btn-primary">📸 Snap Photo & Analyze</button>
+          <button id="snap-btn" class="btn btn-primary" type="button">📸 Capture Frame &amp; Run Inspection</button>
         </div>
       </div>
     </div>
@@ -510,10 +751,10 @@
       <div class="footer-left">
         <span class="footer-brand">ROADVISION AI</span>
         <span class="footer-sep">•</span>
-        <span>Lightweight Computer Vision & ASTM D6433 Road Assessment System</span>
+        <span>Dual-Model YOLOv8 WBF Ensemble &amp; ASTM D6433 Pavement Assessment Microservices</span>
       </div>
       <div class="footer-right">
-        <span>Sub-50ms CPU Inference • Pure ONNX Runtime</span>
+        <span>~55ms CPU Inference • ONNX Runtime • Press <kbd>T</kbd> to toggle Theme</span>
       </div>
     </div>
   </footer>

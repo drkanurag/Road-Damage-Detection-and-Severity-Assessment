@@ -1,0 +1,65 @@
+version: "3.9"
+
+services:
+  detection-service:
+    build: .
+    container_name: roadvision-detection-service
+    command: uvicorn services.detection_service.app:app --host 0.0.0.0 --port 8001
+    environment:
+      - DETECTION_SERVICE_HOST=0.0.0.0
+      - DETECTION_SERVICE_PORT=8001
+    ports:
+      - "8001:8001"
+    restart: unless-stopped
+
+  severity-service:
+    build: .
+    container_name: roadvision-severity-service
+    command: uvicorn services.severity_service.app:app --host 0.0.0.0 --port 8002
+    environment:
+      - SEVERITY_SERVICE_HOST=0.0.0.0
+      - SEVERITY_SERVICE_PORT=8002
+    ports:
+      - "8002:8002"
+    restart: unless-stopped
+
+  visualization-service:
+    build: .
+    container_name: roadvision-visualization-service
+    command: uvicorn services.visualization_service.app:app --host 0.0.0.0 --port 8003
+    environment:
+      - VISUALIZATION_SERVICE_HOST=0.0.0.0
+      - VISUALIZATION_SERVICE_PORT=8003
+    ports:
+      - "8003:8003"
+    restart: unless-stopped
+
+  reporting-service:
+    build: .
+    container_name: roadvision-reporting-service
+    command: uvicorn services.reporting_service.app:app --host 0.0.0.0 --port 8004
+    environment:
+      - REPORTING_SERVICE_HOST=0.0.0.0
+      - REPORTING_SERVICE_PORT=8004
+    ports:
+      - "8004:8004"
+    restart: unless-stopped
+
+  api-gateway:
+    build: .
+    container_name: roadvision-api-gateway
+    command: uvicorn services.api_gateway.app:app --host 0.0.0.0 --port 8000
+    environment:
+      - ROADVISION_MS_MODE=distributed
+      - DETECTION_SERVICE_URL=http://detection-service:8001
+      - SEVERITY_SERVICE_URL=http://severity-service:8002
+      - VISUALIZATION_SERVICE_URL=http://visualization-service:8003
+      - REPORTING_SERVICE_URL=http://reporting-service:8004
+    ports:
+      - "8000:8000"
+    depends_on:
+      - detection-service
+      - severity-service
+      - visualization-service
+      - reporting-service
+    restart: unless-stopped

@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: roadvision-ai-microservices
+    runtime: docker
+    repo: https://github.com/drkanurag/Road-Damage-Detection-and-Severity-Assessment
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: GATEWAY_PORT
+        value: 8000
+      - key: PORT
+        value: 8000

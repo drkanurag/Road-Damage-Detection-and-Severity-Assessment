@@ -1,0 +1,13 @@
+{
+  "name": "RoadVision AI - Road Damage Detection & Severity Assessment",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11",
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y libgl1 libglib2.0-0 && pip install -r requirements.txt",
+  "postAttachCommand": "python web_server.py",
+  "forwardPorts": [8000, 8001, 8002, 8003, 8004, 8501],
+  "portsAttributes": {
+    "8000": {
+      "label": "RoadVision AI Web App & API Gateway",
+      "onAutoForward": "openBrowser"
+    }
+  }
+}

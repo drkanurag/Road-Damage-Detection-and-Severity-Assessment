@@ -38,71 +38,76 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Custom CSS for modern styling
-st.markdown(
-    """
-    <style>
-    .main-header {
-        font-size: 2.2rem;
-        font-weight: 700;
-        color: #1e293b;
-        margin-bottom: 0.2rem;
-    }
-    .sub-header {
-        font-size: 1.05rem;
-        color: #64748b;
-        margin-bottom: 1.5rem;
-    }
-    .metric-card {
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 10px;
-        padding: 16px;
-        text-align: center;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    }
-    .metric-val {
-        font-size: 1.8rem;
-        font-weight: 700;
-        margin-top: 4px;
-    }
-    .badge-high {
-        background-color: #fee2e2;
-        color: #dc2626;
-        padding: 4px 10px;
-        border-radius: 9999px;
-        font-weight: 600;
-        font-size: 0.85rem;
-    }
-    .badge-med {
-        background-color: #fef3c7;
-        color: #d97706;
-        padding: 4px 10px;
-        border-radius: 9999px;
-        font-weight: 600;
-        font-size: 0.85rem;
-    }
-    .badge-low {
-        background-color: #dcfce7;
-        color: #16a34a;
-        padding: 4px 10px;
-        border-radius: 9999px;
-        font-weight: 600;
-        font-size: 0.85rem;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-
 @st.cache_resource
 def load_detector(backend: str):
     """Caches model instances for fast real-time interaction."""
     return RoadDamageDetector(backend=backend)
 
 
+def apply_streamlit_theme(dark_mode: bool) -> str:
+    """Applies dynamic Dark Mode or Light Mode styling to the Streamlit app and returns primary text color."""
+    if dark_mode:
+        bg_main = "#07090e"
+        bg_sidebar = "#0c101a"
+        bg_card = "#111827"
+        border_card = "#1e293b"
+        text_primary = "#f1f5f9"
+        text_muted = "#94a3b8"
+    else:
+        bg_main = "#ffffff"
+        bg_sidebar = "#f8fafc"
+        bg_card = "#f8fafc"
+        border_card = "#e2e8f0"
+        text_primary = "#1e293b"
+        text_muted = "#64748b"
+
+    st.markdown(
+        f"""
+        <style>
+        .stApp {{
+            background-color: {bg_main};
+            color: {text_primary};
+        }}
+        section[data-testid="stSidebar"] {{
+            background-color: {bg_sidebar};
+        }}
+        .main-header {{
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: {text_primary};
+            margin-bottom: 0.2rem;
+        }}
+        .sub-header {{
+            font-size: 1.05rem;
+            color: {text_muted};
+            margin-bottom: 1.5rem;
+        }}
+        .metric-card {{
+            background: {bg_card};
+            border: 1px solid {border_card};
+            border-radius: 10px;
+            padding: 16px;
+            text-align: center;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+        }}
+        .metric-val {{
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-top: 4px;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    return text_primary
+
+
 def main():
+    # ------------------ Sidebar Theme & Controls ------------------
+    st.sidebar.header("🌓 Appearance")
+    dark_mode = st.sidebar.toggle("🌙 Dark Mode / ☀️ Light Mode", value=True)
+    primary_text_color = apply_streamlit_theme(dark_mode)
+
     st.markdown('<div class="main-header">🛣️ Road Damage Detection & Severity Assessment</div>', unsafe_allow_html=True)
     st.markdown(
         '<div class="sub-header">Lightweight Computer Vision system for real-time defect localization, '
@@ -110,7 +115,7 @@ def main():
         unsafe_allow_html=True,
     )
 
-    # ------------------ Sidebar Controls ------------------
+    st.sidebar.markdown("---")
     st.sidebar.header("⚙️ Model & Detection Settings")
 
     backend = st.sidebar.selectbox(
@@ -148,6 +153,10 @@ def main():
     st.sidebar.header("📂 Road Image Source")
 
     sample_options = {
+        "🇮🇳 Roadway Pothole & Alligator Distress": "samples/india_pothole_cracks.jpg",
+        "🇮🇳 Barricade Road Cavities": "samples/india_barricade_potholes.jpg",
+        "🇮🇳 Highway Mid-Lane Pothole Cluster": "samples/india_highway_distress.jpg",
+        "🇮🇳 Suburban Corridor Pothole Field": "samples/india_corridor_worn_road.jpg",
         "🕳️ Potholes & Transverse Fractures": "samples/pothole_sample.jpg",
         "🐊 Alligator (Fatigue) Cracks": "samples/alligator_crack_sample.jpg",
         "📏 Longitudinal Cracking": "samples/longitudinal_crack_sample.jpg",
@@ -232,7 +241,7 @@ def main():
             f"""
             <div class="metric-card">
                 <div style="color: #64748b; font-size: 0.9rem; font-weight: 600;">TOTAL DEFECTS</div>
-                <div class="metric-val" style="color: #1e293b;">{report.summary.total_defects}</div>
+                <div class="metric-val" style="color: {primary_text_color};">{report.summary.total_defects}</div>
                 <div style="font-size: 0.85rem; color: #64748b;">
                     High: {report.summary.severity_counts.get(SEVERITY_HIGH, 0)} | 
                     Med: {report.summary.severity_counts.get(SEVERITY_MEDIUM, 0)} | 

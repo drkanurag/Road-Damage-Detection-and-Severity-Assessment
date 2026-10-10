@@ -75,7 +75,15 @@ class RoadDamageVisualizer:
         thickness = self.line_thickness or max(2, int(base_dim / 350))
         font_scale = self.font_scale or max(0.48, base_dim / 1300.0)
 
-        # 1. Draw each detected bounding box
+        # 1. Draw translucent ROI severity fill first so boxes pop on both dark and bright pavement
+        fill_overlay = canvas.copy()
+        for det in report.detections:
+            color = SEVERITY_COLORS_BGR.get(det.severity.level, (0, 255, 0))
+            x1, y1, x2, y2 = [int(v) for v in det.bbox]
+            cv2.rectangle(fill_overlay, (x1, y1), (x2, y2), color, -1)
+        canvas = cv2.addWeighted(fill_overlay, 0.13, canvas, 0.87, 0)
+
+        # 2. Draw each detected bounding box, corner reticles, and label pill
         for det in report.detections:
             color = SEVERITY_COLORS_BGR.get(det.severity.level, (0, 255, 0))
             x1, y1, x2, y2 = [int(v) for v in det.bbox]
@@ -83,14 +91,16 @@ class RoadDamageVisualizer:
             is_highlighted = highlight_id is not None and det.id == highlight_id
             curr_thick = thickness + 2 if is_highlighted else thickness
 
-            # Draw outer bounding box
+            # Subtle dark outer shadow for maximum contrast on sunlit concrete
+            cv2.rectangle(canvas, (x1, y1), (x2, y2), (10, 12, 18), curr_thick + 2, cv2.LINE_AA)
+            # Draw main severity bounding box
             cv2.rectangle(canvas, (x1, y1), (x2, y2), color, curr_thick, cv2.LINE_AA)
 
             # Draw corner accents for high aesthetic clarity
             corner_len = min(20, int((x2 - x1) * 0.25), int((y2 - y1) * 0.25))
             if corner_len > 4:
                 accent_color = (255, 255, 255)
-                accent_thick = max(1, curr_thick - 1)
+                accent_thick = max(1, curr_thick)
                 # Top-left
                 cv2.line(canvas, (x1, y1), (x1 + corner_len, y1), accent_color, accent_thick)
                 cv2.line(canvas, (x1, y1), (x1, y1 + corner_len), accent_color, accent_thick)
