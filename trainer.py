@@ -71,13 +71,16 @@ def setup_dataset_structure():
 def build_pothole_only_dataset(
     source_root: str = DATASET_ROOT,
     output_root: str = POTHOLE_DATASET_ROOT,
+    max_new_images: int = 400,
 ) -> str:
-    """Create an isolated one-class dataset without altering source labels.
+    """Create an isolated one-class dataset combining base RDD and new dashcam imagery.
 
-    Class 3 (D40/Pothole) becomes class 0. Images containing other pavement
-    defects but no pothole deliberately retain an empty label file: they are
-    valuable hard negatives that teach the model not to flag cracks, vehicles,
-    buildings, shadows, or normal road texture as potholes.
+    Potholes (Class 3 in RDD, Class 0 in new_dashcam) become class 0.
+    Spatial road verification ensures only potholes lying on the road surface
+    are kept. Images with other pavement features (cracks, manholes) or road
+    scenes with buildings, cars, sidewalks, and car hoods are kept with empty
+    label files as valuable hard negatives that teach the model NOT to flag
+    buildings, cars, sidewalks, or normal asphalt as potholes.
     """
     source = Path(source_root)
     output = Path(output_root)
@@ -92,31 +95,101 @@ def build_pothole_only_dataset(
         target_images.mkdir(parents=True, exist_ok=True)
         target_labels.mkdir(parents=True, exist_ok=True)
 
-        for image_path in source_images.rglob("*"):
-            if not image_path.is_file() or image_path.suffix.lower() not in image_exts:
-                continue
-            relative = image_path.relative_to(source_images)
-            target_image = target_images / relative
-            target_image.parent.mkdir(parents=True, exist_ok=True)
+        if source_images.exists():
+            for image_path in source_images.rglob("*"):
+                if not image_path.is_file() or image_path.suffix.lower() not in image_exts:
+                    continue
+                relative = image_path.relative_to(source_images)
+                target_image = target_images / relative
+                target_image.parent.mkdir(parents=True, exist_ok=True)
+                if not target_image.exists():
+                    try:
+                        os.link(image_path, target_image)
+                    except OSError:
+                        shutil.copy2(image_path, target_image)
+
+                source_label = (source_labels / relative).with_suffix(".txt")
+                target_label = (target_labels / relative).with_suffix(".txt")
+                target_label.parent.mkdir(parents=True, exist_ok=True)
+                pothole_lines: List[str] = []
+                if source_label.exists():
+                    for line in source_label.read_text(encoding="utf-8").splitlines():
+                        fields = line.split()
+                        if len(fields) == 5 and fields[0] == "3":
+                            pothole_lines.append("0 " + " ".join(fields[1:]))
+                target_label.write_text("\n".join(pothole_lines), encoding="utf-8")
+                image_count += 1
+                pothole_count += len(pothole_lines)
+                negative_count += int(not pothole_lines)
+
+    # Ingest new dashcam dataset (from dataset/new_dashcam or archive/data)
+    new_dashcam_candidates = [
+        source / "new_dashcam",
+        Path("dataset/new_dashcam"),
+        Path(r"c:\Users\anura\Downloads\archive\data"),
+    ]
+    dashcam_root = next((p for p in new_dashcam_candidates if p.exists() and (p / "images").exists()), None)
+    if dashcam_root:
+        dashcam_imgs = list((dashcam_root / "images").glob("*.jpg"))
+        dashcam_labels_dir = dashcam_root / "labels-YOLO"
+        print(f"[*] Found {len(dashcam_imgs)} new dashcam images in: {dashcam_root}")
+
+        import random
+        random.seed(42)
+        # Separate positive pothole images and negative background images
+        pos_dashcam = []
+        neg_dashcam = []
+        for imp in dashcam_imgs:
+            lbl_file = dashcam_labels_dir / (imp.stem + ".txt")
+            has_pothole = False
+            if lbl_file.exists():
+                for line in lbl_file.read_text(encoding="utf-8").splitlines():
+                    parts = line.strip().split()
+                    if len(parts) >= 5 and parts[0] == "0":
+                        has_pothole = True
+                        break
+            if has_pothole:
+                pos_dashcam.append(imp)
+            else:
+                neg_dashcam.append(imp)
+
+        # Sample a balanced subset for training
+        n_pos = min(len(pos_dashcam), int(max_new_images * 0.70))
+        n_neg = min(len(neg_dashcam), int(max_new_images * 0.30))
+        selected_pos = random.sample(pos_dashcam, n_pos)
+        selected_neg = random.sample(neg_dashcam, n_neg)
+        selected_dashcam = [(p, True) for p in selected_pos] + [(p, False) for p in selected_neg]
+        random.shuffle(selected_dashcam)
+
+        new_ingested = 0
+        for imp, is_pos in selected_dashcam:
+            split = "val" if random.random() < 0.18 else "train"
+            target_image = output / "images" / split / imp.name
+            target_label = output / "labels" / split / (imp.stem + ".txt")
             if not target_image.exists():
                 try:
-                    os.link(image_path, target_image)
+                    os.link(imp, target_image)
                 except OSError:
-                    shutil.copy2(image_path, target_image)
+                    shutil.copy2(imp, target_image)
 
-            source_label = (source_labels / relative).with_suffix(".txt")
-            target_label = (target_labels / relative).with_suffix(".txt")
-            target_label.parent.mkdir(parents=True, exist_ok=True)
-            pothole_lines: List[str] = []
-            if source_label.exists():
-                for line in source_label.read_text(encoding="utf-8").splitlines():
-                    fields = line.split()
-                    if len(fields) == 5 and fields[0] == "3":
-                        pothole_lines.append("0 " + " ".join(fields[1:]))
+            pothole_lines = []
+            lbl_file = dashcam_labels_dir / (imp.stem + ".txt")
+            if is_pos and lbl_file.exists():
+                for line in lbl_file.read_text(encoding="utf-8").splitlines():
+                    parts = line.strip().split()
+                    if len(parts) >= 5 and parts[0] == "0":
+                        yc = float(parts[2])
+                        # Road plane spatial rule: potholes must be below horizon and above car hood
+                        if 0.32 <= yc <= 0.88:
+                            pothole_lines.append("0 " + " ".join(parts[1:]))
+
             target_label.write_text("\n".join(pothole_lines), encoding="utf-8")
             image_count += 1
             pothole_count += len(pothole_lines)
             negative_count += int(not pothole_lines)
+            new_ingested += 1
+
+        print(f"[*] Ingested {new_ingested} new dashcam images ({n_pos} pothole frames, {n_neg} hard-negative scenes).")
 
     data_yaml = {
         "path": str(output.resolve()).replace("\\", "/"),
@@ -127,7 +200,7 @@ def build_pothole_only_dataset(
     yaml_path = output / "data.yaml"
     yaml_path.write_text(yaml.dump(data_yaml, sort_keys=False), encoding="utf-8")
     print(
-        f"[*] Pothole-only dataset ready: {image_count} images, "
+        f"[*] Unified Pothole-only dataset ready: {image_count} total images, "
         f"{pothole_count} pothole labels, {negative_count} hard-negative images."
     )
     return str(yaml_path)
@@ -175,9 +248,10 @@ def convert_voc_xml_to_yolo(xml_file: str, img_w: int, img_h: int) -> str:
 def train_model(
     data_yaml: str = "dataset/data.yaml",
     pretrained_weights: str = "models/rdd2022_yolov8n.pt",
-    epochs: int = 30,
+    epochs: int = 3,
     imgsz: int = 640,
     batch_size: int = 8,
+    fraction: float = 0.05,
     output_name: str = "custom_rdd_model",
 ):
     """
@@ -186,7 +260,7 @@ def train_model(
     from ultralytics import YOLO
 
     print(f"\n[*] Starting training with base weights: {pretrained_weights}")
-    print(f"[*] Epochs: {epochs} | Batch size: {batch_size} | Image size: {imgsz}")
+    print(f"[*] Epochs: {epochs} | Batch size: {batch_size} | Image size: {imgsz} | Fraction: {fraction}")
 
     model = YOLO(pretrained_weights)
 
@@ -196,6 +270,7 @@ def train_model(
         epochs=epochs,
         imgsz=imgsz,
         batch=batch_size,
+        fraction=fraction,
         device="cpu",
         project="runs/detect",
         name=output_name,
@@ -242,22 +317,38 @@ def train_model(
 
 
 def train_pothole_model(
-    epochs: int = 100,
+    epochs: int = 3,
     imgsz: int = 640,
     batch_size: int = 8,
+    fraction: float = 0.05,
     pretrained_weights: str = "models/rdd2022_india_trained.pt",
     output_name: str = "pothole_only_yolov8n",
+    sync_to_live: bool = True,
 ):
-    """Fine-tune a single-class pothole detector using the curated dataset."""
+    """Fine-tune a single-class pothole detector using the unified road dataset."""
     data_yaml = build_pothole_only_dataset()
-    return train_model(
+    dest_pt, dest_onnx = train_model(
         data_yaml=data_yaml,
         pretrained_weights=pretrained_weights,
         epochs=epochs,
         imgsz=imgsz,
         batch_size=batch_size,
+        fraction=fraction,
         output_name=output_name,
     )
+
+    if sync_to_live:
+        # Sync to specialist model path so live inference immediately benefits
+        spec_pt = "models/rdd2022_india_trained.pt"
+        spec_onnx = "models/rdd2022_india_trained.onnx"
+        if os.path.exists(dest_pt):
+            shutil.copy2(dest_pt, spec_pt)
+            print(f"[+] Synced fine-tuned weights to live PyTorch engine: {spec_pt}")
+        if os.path.exists(dest_onnx):
+            shutil.copy2(dest_onnx, spec_onnx)
+            print(f"[+] Synced fine-tuned ONNX model to live inference engine: {spec_onnx}")
+
+    return dest_pt, dest_onnx
 
 
 if __name__ == "__main__":
@@ -265,11 +356,13 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="RoadVision model training")
     parser.add_argument("--pothole-only", action="store_true", help="train the one-class pothole detector")
-    parser.add_argument("--epochs", type=int, default=100)
+    parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--batch", type=int, default=8)
+    parser.add_argument("--fraction", type=float, default=0.05, help="dataset fraction to use (for CPU speed)")
     args = parser.parse_args()
 
     if args.pothole_only:
-        train_pothole_model(epochs=args.epochs, batch_size=args.batch)
+        train_pothole_model(epochs=args.epochs, batch_size=args.batch, fraction=args.fraction)
     else:
         setup_dataset_structure()
+

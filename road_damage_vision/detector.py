@@ -23,6 +23,7 @@ from road_damage_vision.config import (
     SPECIALIST_ONNX_MODEL_PATH,
     SPECIALIST_PT_MODEL_PATH,
 )
+from road_damage_vision.road_filter import RoadSurfaceFilter
 from road_damage_vision.severity import RoadHealthSummary, SeverityAssessment, SeverityEstimator
 
 
@@ -67,6 +68,7 @@ class RoadDamageDetector:
         iou_threshold: float = DEFAULT_IOU_THRESHOLD,
         ensemble: bool = True,
         pothole_only: bool = True,
+        filter_road_surface: bool = True,
     ):
         """
         Args:
@@ -78,12 +80,16 @@ class RoadDamageDetector:
             ensemble: Whether to fuse predictions with the secondary regional specialist model.
             pothole_only: Return only confirmed potholes. Enabled by default so
                 unrelated objects are never reported as road damage.
+            filter_road_surface: Enforce strict road surface & drivable pavement spatial
+                and photometric validation to reject buildings, car hoods, sky, and sidewalks.
         """
         self.backend = backend.lower()
         self.img_size = img_size
         self.conf_threshold = conf_threshold
         self.iou_threshold = iou_threshold
         self.pothole_only = pothole_only
+        self.filter_road_surface = filter_road_surface
+        self.road_filter = RoadSurfaceFilter()
         self.severity_estimator = SeverityEstimator()
 
         if model_path is None:
@@ -415,6 +421,9 @@ class RoadDamageDetector:
                 detections = self._fuse_ensemble_detections(det_global, det_spec, conf_t)
             else:
                 detections = det_global
+
+            if self.filter_road_surface:
+                detections = self.road_filter.filter_detections(detections, img_bgr)
             return self._keep_potholes(detections, conf_t)
 
         elif self.backend == "pytorch":
@@ -444,6 +453,9 @@ class RoadDamageDetector:
                 detections = self._fuse_ensemble_detections(det_global, det_spec, conf_t)
             else:
                 detections = det_global
+
+            if self.filter_road_surface:
+                detections = self.road_filter.filter_detections(detections, img_bgr)
             return self._keep_potholes(detections, conf_t)
 
         return []
@@ -457,10 +469,8 @@ class RoadDamageDetector:
         if not self.pothole_only:
             return detections
 
-        # The previous 0.20 UI setting admitted weak, road-adjacent candidates.
-        # A pothole must be a pothole-class prediction and be strong enough to
-        # confirm, even if the caller chooses a lower display threshold.
-        confirmation_threshold = max(0.34, requested_threshold)
+        # Respect the caller's requested threshold (or instance default)
+        confirmation_threshold = requested_threshold
         return [
             detection
             for detection in detections

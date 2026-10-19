@@ -163,6 +163,43 @@ class TestRoadDamageSystem(unittest.TestCase):
         self.assertGreaterEqual(len(rep_india.detections), 1)
         self.assertTrue(all(d.class_name == "Pothole" for d in rep_india.detections))
 
+    def test_road_surface_filter_rejects_out_of_road_objects(self):
+        """Verify RoadSurfaceFilter rejects sky, buildings, car hoods, and sidewalks."""
+        from road_damage_vision.road_filter import RoadSurfaceFilter
+
+        rf = RoadSurfaceFilter()
+        # Synthetic dashcam test image (600x1000): top 30% sky/buildings, middle 55% road, bottom 15% orange car hood
+        test_img = np.zeros((600, 1000, 3), dtype=np.uint8)
+        # Upper sky/building
+        test_img[:180, :] = [220, 180, 140]
+        # Asphalt road surface (neutral gray)
+        test_img[180:520, :] = [65, 65, 65]
+        # Painted car hood (bright orange)
+        test_img[520:, :] = [20, 80, 220]
+
+        # 1. Box in sky / upper building
+        sky_box = (400, 50, 600, 120)
+        res_sky = rf.verify_candidate(sky_box, test_img, is_dashcam=True)
+        self.assertFalse(res_sky.is_on_road)
+        self.assertIn("horizon", res_sky.rejection_reason.lower())
+
+        # 2. Box on vehicle hood
+        hood_box = (100, 530, 350, 580)
+        res_hood = rf.verify_candidate(hood_box, test_img, is_dashcam=True)
+        self.assertFalse(res_hood.is_on_road)
+        self.assertTrue("hood" in res_hood.rejection_reason.lower() or "saturation" in res_hood.rejection_reason.lower())
+
+        # 3. Box outside road corridor on upper-left/right periphery
+        periphery_box = (50, 220, 150, 280)
+        res_periph = rf.verify_candidate(periphery_box, test_img, is_dashcam=True)
+        self.assertFalse(res_periph.is_on_road)
+        self.assertIn("corridor", res_periph.rejection_reason.lower())
+
+        # 4. Valid pothole on the asphalt road surface
+        road_pothole_box = (450, 360, 550, 420)
+        res_road = rf.verify_candidate(road_pothole_box, test_img, is_dashcam=True)
+        self.assertTrue(res_road.is_on_road)
+
 
 if __name__ == "__main__":
     unittest.main()
