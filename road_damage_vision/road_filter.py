@@ -34,12 +34,12 @@ class RoadSurfaceFilter:
 
     def __init__(
         self,
-        horizon_ratio: float = 0.32,
-        hood_ratio: float = 0.88,
+        horizon_ratio: float = 0.20,
+        hood_ratio: float = 0.94,
         lane_vanishing_x: float = 0.50,
-        min_lane_half_width: float = 0.20,
-        max_lane_half_width: float = 0.46,
-        max_asphalt_saturation: float = 115.0,
+        min_lane_half_width: float = 0.30,
+        max_lane_half_width: float = 0.48,
+        max_asphalt_saturation: float = 135.0,
     ):
         """
         Args:
@@ -115,7 +115,7 @@ class RoadSurfaceFilter:
         # 1. Horizon & Sky / Façade Constraint (Always Active for Dashcams)
         # -------------------------------------------------------------
         if is_dashcam:
-            if yc < self.horizon_ratio or y2_norm < (self.horizon_ratio + 0.04):
+            if yc < self.horizon_ratio or y2_norm < (self.horizon_ratio + 0.02):
                 return RoadFilterResult(
                     False,
                     f"Above road horizon (yc={yc:.2f} < {self.horizon_ratio:.2f}); located in sky or upper building façade",
@@ -127,7 +127,7 @@ class RoadSurfaceFilter:
         # -------------------------------------------------------------
         if is_dashcam:
             # Absolute hood cutoff
-            if yc > self.hood_ratio or y2_norm > 0.95:
+            if yc > self.hood_ratio or y2_norm > 0.98:
                 return RoadFilterResult(
                     False,
                     f"On vehicle dashboard/hood (yc={yc:.2f} > {self.hood_ratio:.2f})",
@@ -135,7 +135,7 @@ class RoadSurfaceFilter:
                 )
 
             # Curved hood corners: bottom-left & bottom-right
-            if yc > 0.76 and (xc < 0.28 or xc > 0.72):
+            if yc > 0.84 and (xc < 0.20 or xc > 0.80):
                 ix1, iy1 = max(0, int(x1)), max(0, int(y1))
                 ix2, iy2 = min(w, int(x2)), min(h, int(y2))
                 crop = img_bgr[iy1:iy2, ix1:ix2]
@@ -143,7 +143,7 @@ class RoadSurfaceFilter:
                     crop_hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
                     sat_mean = float(np.mean(crop_hsv[:, :, 1]))
                     # Painted vehicle bodywork typically has strong chromatic saturation
-                    if sat_mean > 95.0:
+                    if sat_mean > 105.0:
                         return RoadFilterResult(
                             False,
                             f"Vehicle painted hood/bodywork (saturation={sat_mean:.1f})",

@@ -307,11 +307,10 @@ class RoadDamageDetector:
         fused: List[Tuple[int, float, Tuple[float, float, float, float]]] = []
         used_spec = set()
 
-        # Assess whether the Global Multi-Class model already has strong confidence
-        # or multiple crack detections on this frame
+        # Assess whether the Global Multi-Class model confirms a pure crack pavement surface
         max_global_conf = max((c[1] for c in det_global), default=0.0)
         global_crack_count = sum(1 for c in det_global if c[0] in (0, 1, 2))
-        global_crack_dominant = (max_global_conf >= 0.50) or (global_crack_count >= 2)
+        global_crack_dominant = (max_global_conf >= 0.50) and (global_crack_count >= 2)
 
         for g_cid, g_conf, g_box in det_global:
             matches = []
@@ -359,18 +358,18 @@ class RoadDamageDetector:
             if overlaps_existing:
                 continue
 
-            if global_crack_dominant:
-                # Frame already has strong Global multi-class detections; only allow high-confidence
-                # independent specialist detections to avoid crack-fragment false positives
-                if s_conf >= max(0.45, conf_thresh + 0.20):
-                    fused.append((s_cid, s_conf, s_box))
-            else:
-                # Weathered / Indian asphalt domain where Global model has low recall
-                if s_cid == 3:
-                    calib_conf = min(0.92, s_conf * 1.18)
+            if s_cid == 3:
+                # If frame is heavily dominated by confirmed linear cracks and no global pothole,
+                # demand higher specialist confidence so crack edges are not mislabeled as potholes
+                if global_crack_dominant:
+                    if s_conf >= max(0.28, conf_thresh + 0.05):
+                        fused.append((s_cid, s_conf, s_box))
+                else:
+                    calib_conf = min(0.95, s_conf * 1.25)
                     if calib_conf >= conf_thresh:
                         fused.append((s_cid, calib_conf, s_box))
-                elif s_conf >= conf_thresh + 0.08:
+            else:
+                if s_conf >= conf_thresh + 0.08:
                     fused.append((s_cid, s_conf, s_box))
 
         # Final Containment-Aware NMS to eliminate nested redundant bounding boxes
@@ -411,7 +410,7 @@ class RoadDamageDetector:
                 out_global, (orig_h, orig_w), ratio, pad, conf_t, iou_t
             )
             if self.use_ensemble and self.specialist_session is not None:
-                spec_conf = max(0.20, conf_t * 0.85)
+                spec_conf = max(0.10, conf_t * 0.70)
                 out_spec = self.specialist_session.run(
                     [self.spec_output_name], {self.spec_input_name: inp_tensor}
                 )[0]
@@ -439,7 +438,7 @@ class RoadDamageDetector:
                 det_global.append((cid, score, (x1, y1, x2, y2)))
 
             if self.use_ensemble and self.specialist_model is not None:
-                spec_conf = max(0.20, conf_t * 0.85)
+                spec_conf = max(0.10, conf_t * 0.70)
                 res_spec = self.specialist_model.predict(
                     img_bgr, conf=spec_conf, iou=iou_t, imgsz=self.img_size, verbose=False
                 )[0]

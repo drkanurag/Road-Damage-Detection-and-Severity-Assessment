@@ -936,7 +936,7 @@ class RoadVisionApp {
 
     const confThresh = parseFloat(this.confSlider.value) / 100;
     const filtered = pre.defects
-      .filter((d) => d.class_name === "Pothole" && d.confidence >= Math.max(0.34, confThresh))
+      .filter((d) => d.class_name === "Pothole" && d.confidence >= confThresh)
       .map((d, i) => ({ ...d, id: i + 1 }));
 
     // Recompute summary if confidence slider filtered any boxes
@@ -1069,20 +1069,20 @@ class RoadVisionApp {
     const meanRoadLum = sumLum / Math.max(1, cntLum);
 
     // Scan strictly within the Drivable Road Corridor
-    const cellW = 28;
-    const cellH = 28;
+    const cellW = 32;
+    const cellH = 32;
     const candidates = [];
-    const minRoadY = Math.floor(ph * 0.36); // Below horizon (no sky or upper buildings)
-    const maxRoadY = Math.floor(ph * 0.86); // Above vehicle hood / dashboard
+    const minRoadY = Math.floor(ph * 0.22); // Below horizon (no sky or upper buildings)
+    const maxRoadY = Math.floor(ph * 0.94); // Above vehicle hood / dashboard
 
-    for (let cy = minRoadY; cy <= maxRoadY - cellH; cy += 18) {
-      // Perspective road trapezoid: narrows toward the horizon
+    for (let cy = minRoadY; cy <= maxRoadY - cellH; cy += 14) {
+      // Perspective road trapezoid: accommodates multi-lane and shoulder roadway
       const t = (cy - minRoadY) / (maxRoadY - minRoadY);
-      const halfW = pw * (0.18 + 0.32 * Math.pow(t, 0.85));
-      const minRoadX = Math.floor(Math.max(12, (pw * 0.50) - halfW));
-      const maxRoadX = Math.floor(Math.min(pw - cellW - 12, (pw * 0.50) + halfW));
+      const halfW = pw * (0.36 + 0.14 * Math.pow(t, 0.85));
+      const minRoadX = Math.floor(Math.max(8, (pw * 0.50) - halfW));
+      const maxRoadX = Math.floor(Math.min(pw - cellW - 8, (pw * 0.50) + halfW));
 
-      for (let cx = minRoadX; cx <= maxRoadX; cx += 18) {
+      for (let cx = minRoadX; cx <= maxRoadX; cx += 14) {
         let darkCount = 0;
         let edgeCount = 0;
         let cellSum = 0;
@@ -1094,11 +1094,11 @@ class RoadVisionApp {
             const v = gray[y * pw + x];
             cellSum += v;
             satSum += sat[y * pw + x];
-            if (meanRoadLum - v > 30) darkCount++;
+            if (meanRoadLum - v > 18) darkCount++;
             if (x < pw - 1 && y < ph - 1) {
               const gx = Math.abs(gray[y * pw + x + 1] - v);
               const gy = Math.abs(gray[(y + 1) * pw + x] - v);
-              if (gx + gy > 38) edgeCount++;
+              if (gx + gy > 24) edgeCount++;
             }
           }
         }
@@ -1109,13 +1109,13 @@ class RoadVisionApp {
         const contrastDelta = Math.max(0, meanRoadLum - (cellSum / n));
 
         // Pothole must be an asphalt depression: low saturation, distinct cavity contrast & rim edges
-        if (darkRatio > 0.28 && edgeRatio > 0.12 && contrastDelta > 20 && meanCellSat < 115) {
+        if ((darkRatio > 0.14 || contrastDelta > 14) && edgeRatio > 0.05 && meanCellSat < 135) {
           candidates.push({
             x1: (cx / pw) * w,
             y1: (cy / ph) * h,
             x2: ((cx + cellW * 1.35) / pw) * w,
             y2: ((cy + cellH * 1.25) / ph) * h,
-            score: Math.min(0.88, 0.35 + darkRatio * 0.6 + (contrastDelta / 70) * 0.3),
+            score: Math.min(0.92, 0.38 + darkRatio * 0.5 + (contrastDelta / 50) * 0.3),
             edgeDensity: edgeRatio,
             contrastDelta,
           });

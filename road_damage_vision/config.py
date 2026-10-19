@@ -109,10 +109,8 @@ DEFAULT_PT_MODEL_PATH = "models/rdd2022_yolov8n.pt"
 SPECIALIST_ONNX_MODEL_PATH = "models/rdd2022_india_trained.onnx"
 SPECIALIST_PT_MODEL_PATH = "models/rdd2022_india_trained.pt"
 DEFAULT_IMG_SIZE = 640
-# Pothole detection is precision-first. The detector enforces a 0.34
-# confirmation threshold in pothole-only mode even when a lower value is sent.
-# (The supplied model's strongest well-localized potholes calibrate near 0.35.)
-DEFAULT_CONF_THRESHOLD = 0.34
+# Balanced sensitivity: captures genuine road distress while RoadSurfaceFilter eliminates out-of-road noise
+DEFAULT_CONF_THRESHOLD = 0.18
 DEFAULT_IOU_THRESHOLD = 0.45
 DEFAULT_ORT_THREADS = 6
 
