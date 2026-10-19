@@ -13,3 +13,8 @@ output/
 results/
 _temp*/
 *.log
+
+# Generated training data, checkpoints, and local shell caches
+dataset_pothole_only/
+runs/detect/runs/
+Microsoft/

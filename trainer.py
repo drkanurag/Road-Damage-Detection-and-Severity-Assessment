@@ -8,10 +8,9 @@ import glob
 import os
 import shutil
 import xml.etree.ElementTree as ET
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 import yaml
-
-from road_damage_vision.config import DEFECT_CLASSES
 
 # Canonical class mapping
 CLASS_MAP = {
@@ -39,6 +38,7 @@ CLASS_MAP = {
 DATASET_ROOT = "dataset"
 IMAGES_DIR = os.path.join(DATASET_ROOT, "images")
 LABELS_DIR = os.path.join(DATASET_ROOT, "labels")
+POTHOLE_DATASET_ROOT = "dataset_pothole_only"
 
 
 def setup_dataset_structure():
@@ -66,6 +66,71 @@ def setup_dataset_structure():
     print(f"[*] Dataset structure initialized at: {DATASET_ROOT}")
     print(f"[*] Configuration saved to: {yaml_path}")
     return yaml_path
+
+
+def build_pothole_only_dataset(
+    source_root: str = DATASET_ROOT,
+    output_root: str = POTHOLE_DATASET_ROOT,
+) -> str:
+    """Create an isolated one-class dataset without altering source labels.
+
+    Class 3 (D40/Pothole) becomes class 0. Images containing other pavement
+    defects but no pothole deliberately retain an empty label file: they are
+    valuable hard negatives that teach the model not to flag cracks, vehicles,
+    buildings, shadows, or normal road texture as potholes.
+    """
+    source = Path(source_root)
+    output = Path(output_root)
+    image_exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+    image_count = pothole_count = negative_count = 0
+
+    for split in ("train", "val"):
+        source_images = source / "images" / split
+        source_labels = source / "labels" / split
+        target_images = output / "images" / split
+        target_labels = output / "labels" / split
+        target_images.mkdir(parents=True, exist_ok=True)
+        target_labels.mkdir(parents=True, exist_ok=True)
+
+        for image_path in source_images.rglob("*"):
+            if not image_path.is_file() or image_path.suffix.lower() not in image_exts:
+                continue
+            relative = image_path.relative_to(source_images)
+            target_image = target_images / relative
+            target_image.parent.mkdir(parents=True, exist_ok=True)
+            if not target_image.exists():
+                try:
+                    os.link(image_path, target_image)
+                except OSError:
+                    shutil.copy2(image_path, target_image)
+
+            source_label = (source_labels / relative).with_suffix(".txt")
+            target_label = (target_labels / relative).with_suffix(".txt")
+            target_label.parent.mkdir(parents=True, exist_ok=True)
+            pothole_lines: List[str] = []
+            if source_label.exists():
+                for line in source_label.read_text(encoding="utf-8").splitlines():
+                    fields = line.split()
+                    if len(fields) == 5 and fields[0] == "3":
+                        pothole_lines.append("0 " + " ".join(fields[1:]))
+            target_label.write_text("\n".join(pothole_lines), encoding="utf-8")
+            image_count += 1
+            pothole_count += len(pothole_lines)
+            negative_count += int(not pothole_lines)
+
+    data_yaml = {
+        "path": str(output.resolve()).replace("\\", "/"),
+        "train": "images/train",
+        "val": "images/val",
+        "names": {0: "Pothole"},
+    }
+    yaml_path = output / "data.yaml"
+    yaml_path.write_text(yaml.dump(data_yaml, sort_keys=False), encoding="utf-8")
+    print(
+        f"[*] Pothole-only dataset ready: {image_count} images, "
+        f"{pothole_count} pothole labels, {negative_count} hard-negative images."
+    )
+    return str(yaml_path)
 
 
 def convert_voc_xml_to_yolo(xml_file: str, img_w: int, img_h: int) -> str:
@@ -148,15 +213,19 @@ def train_model(
         mosaic=0.5,
     )
 
-    best_pt = os.path.join("runs", "detect", output_name, "weights", "best.pt")
-    if not os.path.exists(best_pt):
-        best_pt = os.path.join("runs", "detect", output_name, "weights", "last.pt")
+    # Ultralytics may prefix the configured project directory through its global
+    # settings, so use the trainer's resolved directory rather than rebuilding
+    # a path from assumptions.
+    run_dir = Path(getattr(model.trainer, "save_dir", Path("runs") / "detect" / output_name))
+    best_pt = run_dir / "weights" / "best.pt"
+    if not best_pt.exists():
+        best_pt = run_dir / "weights" / "last.pt"
 
     print(f"\n[+] Training complete! Best weights saved to: {best_pt}")
 
     # Copy to models directory
     dest_pt = f"models/{output_name}.pt"
-    shutil.copy(best_pt, dest_pt)
+    shutil.copy(str(best_pt), dest_pt)
     print(f"[+] Saved model to: {dest_pt}")
 
     # Export to ONNX for fast CPU inference
@@ -172,5 +241,35 @@ def train_model(
     return dest_pt, dest_onnx
 
 
+def train_pothole_model(
+    epochs: int = 100,
+    imgsz: int = 640,
+    batch_size: int = 8,
+    pretrained_weights: str = "models/rdd2022_india_trained.pt",
+    output_name: str = "pothole_only_yolov8n",
+):
+    """Fine-tune a single-class pothole detector using the curated dataset."""
+    data_yaml = build_pothole_only_dataset()
+    return train_model(
+        data_yaml=data_yaml,
+        pretrained_weights=pretrained_weights,
+        epochs=epochs,
+        imgsz=imgsz,
+        batch_size=batch_size,
+        output_name=output_name,
+    )
+
+
 if __name__ == "__main__":
-    setup_dataset_structure()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="RoadVision model training")
+    parser.add_argument("--pothole-only", action="store_true", help="train the one-class pothole detector")
+    parser.add_argument("--epochs", type=int, default=100)
+    parser.add_argument("--batch", type=int, default=8)
+    args = parser.parse_args()
+
+    if args.pothole_only:
+        train_pothole_model(epochs=args.epochs, batch_size=args.batch)
+    else:
+        setup_dataset_structure()

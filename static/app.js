@@ -931,7 +931,7 @@ class RoadVisionApp {
 
     const confThresh = parseFloat(this.confSlider.value) / 100;
     const filtered = pre.defects
-      .filter((d) => d.confidence >= confThresh)
+      .filter((d) => d.class_name === "Pothole" && d.confidence >= Math.max(0.34, confThresh))
       .map((d, i) => ({ ...d, id: i + 1 }));
 
     // Recompute summary if confidence slider filtered any boxes
@@ -1021,6 +1021,44 @@ class RoadVisionApp {
     const img = await this._loadImageCrossOrigin(dataUrl);
     const w = img.naturalWidth || img.width;
     const h = img.naturalHeight || img.height;
+
+    // Do not claim that a dark object is a pothole. The old browser-only
+    // brightness/edge scan detected cars, façades and shadows. Uploaded images
+    // require the trained server-side pothole model; until it is available we
+    // show the image with an explicit pending state instead of fabricated boxes.
+    const pendingSummary = {
+      health_score: 100,
+      status: "Not assessed",
+      total_defects: 0,
+      critical_defects_count: 0,
+      severity_counts: { High: 0, Medium: 0, Low: 0 },
+      class_counts: {},
+      estimated_maintenance_urgency: "Start the local detector to assess this image.",
+      action_items: [],
+    };
+    const pendingRender = this._renderAnnotatedCanvasAndCrops(
+      img, [], pendingSummary, 0, "Pothole model required"
+    );
+    return {
+      success: true,
+      microservice_trace: {
+        correlation_id: `rv-pending-${Date.now().toString(16).slice(-8)}`,
+        architecture: "trained-model-required",
+        stage_timings_ms: {
+          detection_service_ms: 0, severity_service_ms: 0,
+          visualization_service_ms: 0, reporting_service_ms: 0,
+        },
+      },
+      metadata: {
+        image_width: w, image_height: h, inference_time_ms: 0,
+        backend: "Pothole model unavailable (start the local server)",
+        source: file.name || "uploaded_image.jpg",
+      },
+      summary: pendingSummary,
+      defects: pendingRender.enrichedDefects,
+      markdown_summary: `# Pothole inspection pending\n- **Source**: ${file.name || "Uploaded Image"}\n- **Result**: Start the local RoadVision server to run the trained pothole model.\n`,
+      images: { raw: pendingRender.rawDataUrl, annotated: pendingRender.annotatedDataUrl },
+    };
 
     // Morphological Grid Fissure & Cavity Analysis on Road ROI
     const procCanvas = document.createElement("canvas");

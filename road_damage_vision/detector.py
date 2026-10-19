@@ -66,6 +66,7 @@ class RoadDamageDetector:
         conf_threshold: float = DEFAULT_CONF_THRESHOLD,
         iou_threshold: float = DEFAULT_IOU_THRESHOLD,
         ensemble: bool = True,
+        pothole_only: bool = True,
     ):
         """
         Args:
@@ -75,11 +76,14 @@ class RoadDamageDetector:
             conf_threshold: Minimum detection confidence (0.0 to 1.0).
             iou_threshold: IoU overlap threshold for Non-Maximum Suppression.
             ensemble: Whether to fuse predictions with the secondary regional specialist model.
+            pothole_only: Return only confirmed potholes. Enabled by default so
+                unrelated objects are never reported as road damage.
         """
         self.backend = backend.lower()
         self.img_size = img_size
         self.conf_threshold = conf_threshold
         self.iou_threshold = iou_threshold
+        self.pothole_only = pothole_only
         self.severity_estimator = SeverityEstimator()
 
         if model_path is None:
@@ -220,6 +224,11 @@ class RoadDamageDetector:
 
         max_scores = class_scores.max(axis=1)
         class_ids = class_scores.argmax(axis=1)
+        # A dedicated pothole model has one output class (index 0). Keep the
+        # public id at 3 so existing severity and visualisation code remains
+        # compatible with the RDD class map.
+        if class_scores.shape[1] == 1:
+            class_ids = np.full_like(class_ids, 3)
 
         # Filter by confidence threshold
         mask = max_scores >= conf_thresh
@@ -403,16 +412,19 @@ class RoadDamageDetector:
                 det_spec = self._postprocess_onnx(
                     out_spec, (orig_h, orig_w), ratio, pad, spec_conf, iou_t
                 )
-                return self._fuse_ensemble_detections(det_global, det_spec, conf_t)
-            return det_global
+                detections = self._fuse_ensemble_detections(det_global, det_spec, conf_t)
+            else:
+                detections = det_global
+            return self._keep_potholes(detections, conf_t)
 
         elif self.backend == "pytorch":
             results = self.model.predict(
                 img_bgr, conf=conf_t, iou=iou_t, imgsz=self.img_size, verbose=False
             )[0]
             det_global = []
+            global_is_single_class = len(results.names) == 1
             for box in results.boxes:
-                cid = int(box.cls[0])
+                cid = 3 if global_is_single_class else int(box.cls[0])
                 score = float(box.conf[0])
                 x1, y1, x2, y2 = box.xyxy[0].tolist()
                 det_global.append((cid, score, (x1, y1, x2, y2)))
@@ -423,15 +435,37 @@ class RoadDamageDetector:
                     img_bgr, conf=spec_conf, iou=iou_t, imgsz=self.img_size, verbose=False
                 )[0]
                 det_spec = []
+                specialist_is_single_class = len(res_spec.names) == 1
                 for box in res_spec.boxes:
-                    cid = int(box.cls[0])
+                    cid = 3 if specialist_is_single_class else int(box.cls[0])
                     score = float(box.conf[0])
                     x1, y1, x2, y2 = box.xyxy[0].tolist()
                     det_spec.append((cid, score, (x1, y1, x2, y2)))
-                return self._fuse_ensemble_detections(det_global, det_spec, conf_t)
-            return det_global
+                detections = self._fuse_ensemble_detections(det_global, det_spec, conf_t)
+            else:
+                detections = det_global
+            return self._keep_potholes(detections, conf_t)
 
         return []
+
+    def _keep_potholes(
+        self,
+        detections: List[Tuple[int, float, Tuple[float, float, float, float]]],
+        requested_threshold: float,
+    ) -> List[Tuple[int, float, Tuple[float, float, float, float]]]:
+        """Apply the precision-first pothole-only product policy."""
+        if not self.pothole_only:
+            return detections
+
+        # The previous 0.20 UI setting admitted weak, road-adjacent candidates.
+        # A pothole must be a pothole-class prediction and be strong enough to
+        # confirm, even if the caller chooses a lower display threshold.
+        confirmation_threshold = max(0.34, requested_threshold)
+        return [
+            detection
+            for detection in detections
+            if detection[0] == 3 and detection[1] >= confirmation_threshold
+        ]
 
     def predict(
         self,
